@@ -1,0 +1,442 @@
+'use client'
+
+import { useEffect, useState, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
+import { AppSidebar } from '@/components/app-sidebar'
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@/components/ui/breadcrumb'
+import { Separator } from '@/components/ui/separator'
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from '@/components/ui/sidebar'
+import { DataService } from '@/lib/data-service'
+import { Market, MarketUpdate, supabase } from '@/lib/supabase'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { MapPin, Building2, User, Mail, Phone, Users, MessageSquare, Edit, Trash2, X, Filter } from 'lucide-react'
+import { ViewToggle } from '@/components/view-toggle'
+import { DataTable } from '@/components/ui/data-table'
+import { createColumns } from './columns'
+import { MarketUpdateForm } from '@/components/market-update-form'
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+
+interface MarketWithDetails extends Market {
+  propertyCount: number
+  franchisees: Array<{
+    id: string
+    full_name: string | null
+    email: string | null
+    phone: string | null
+    avatar_url: string | null
+    status: string | null
+  }>
+}
+
+// Remove the old ChatMessage interface since we'll use MarketUpdate from Supabase
+
+export default function MarketsPage() {
+  const router = useRouter()
+  const [markets, setMarkets] = useState<MarketWithDetails[]>([])
+  const [loading, setLoading] = useState(true)
+  const [view, setView] = useState<'cards' | 'table'>('table')
+  const [updatesModalOpen, setUpdatesModalOpen] = useState(false)
+  const [selectedMarketForUpdates, setSelectedMarketForUpdates] = useState<MarketWithDetails | null>(null)
+  const [marketUpdates, setMarketUpdates] = useState<MarketUpdate[]>([])
+  const [editingUpdate, setEditingUpdate] = useState<MarketUpdate | null>(null)
+  const [phaseFilter, setPhaseFilter] = useState<string>('all')
+  const [marketDetailsModalOpen, setMarketDetailsModalOpen] = useState(false)
+
+  const handleViewUpdates = (marketId: string) => {
+    const market = markets.find(m => m.id === marketId)
+    if (market) {
+      setSelectedMarketForUpdates(market)
+      setUpdatesModalOpen(true)
+    }
+  }
+
+  const handleMarketRowClick = (market: MarketWithDetails) => {
+    router.push(`/markets/${market.id}`)
+  }
+
+  const handleViewMarketDetails = () => {
+    setMarketDetailsModalOpen(true)
+  }
+
+  // Get all unique phases from markets
+  const allPhases = useMemo(() => {
+    const phases = new Set<string>()
+    markets.forEach(market => {
+      market.phases.forEach(phase => phases.add(phase))
+    })
+    return Array.from(phases).sort()
+  }, [markets])
+
+  // Filter markets based on selected phase
+  const filteredMarkets = useMemo(() => {
+    if (phaseFilter === 'all') {
+      return markets
+    }
+    return markets.filter(market => market.phases.includes(phaseFilter))
+  }, [markets, phaseFilter])
+
+  const fetchMarketUpdates = async () => {
+    try {
+      const updates = await DataService.getMarketUpdates()
+      setMarketUpdates(updates)
+    } catch (error) {
+      console.error('Error fetching market updates:', error)
+    }
+  }
+
+  const handleUpdateMarketUpdates = () => {
+    // No need to manually fetch - realtime will handle updates
+    // Just clear the form state
+  }
+
+  const handleEditUpdate = (update: MarketUpdate) => {
+    setEditingUpdate(update)
+  }
+
+  const handleCancelEdit = () => {
+    setEditingUpdate(null)
+  }
+
+  const handleDeleteUpdate = async (updateId: string) => {
+    if (window.confirm('Are you sure you want to delete this message?')) {
+      try {
+        await DataService.deleteMarketUpdate(updateId)
+        // The realtime subscription will handle the UI update
+      } catch (error) {
+        console.error('Error deleting market update:', error)
+      }
+    }
+  }
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [marketsWithDetails] = await Promise.all([
+          DataService.getMarketsWithDetails(),
+          fetchMarketUpdates()
+        ])
+        setMarkets(marketsWithDetails)
+      } catch (error) {
+        console.error('Error fetching data:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [])
+
+
+
+
+  if (loading) {
+    return (
+      <SidebarProvider>
+        <AppSidebar />
+        <SidebarInset>
+          <div className="flex items-center justify-center h-screen">
+            <div className="text-lg">Loading markets...</div>
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
+    )
+  }
+
+  return (
+    <SidebarProvider>
+      <AppSidebar />
+      <SidebarInset>
+        <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
+          <div className="flex items-center gap-2 px-4">
+            <SidebarTrigger className="-ml-1" />
+            <Separator
+              orientation="vertical"
+              className="mr-2 data-[orientation=vertical]:h-4"
+            />
+            <Breadcrumb>
+              <BreadcrumbList>
+                <BreadcrumbItem>
+                  <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbPage>Markets</BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
+          </div>
+          <div className="ml-auto px-4 flex items-center gap-4">
+            <ViewToggle view={view} onViewChange={setView} />
+          </div>
+        </header>
+        <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+          <Card>
+            <CardHeader>
+              <CardTitle>All Markets</CardTitle>
+              <CardDescription>
+                {filteredMarkets.length} markets in the system
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {/* Phase Filter */}
+              <div className="flex items-center gap-4 mb-6">
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4" />
+                  <span className="text-sm font-medium">Filter by Phase:</span>
+                </div>
+                <Select value={phaseFilter} onValueChange={setPhaseFilter}>
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="Select phase" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Phases</SelectItem>
+                    {allPhases.map((phase) => (
+                      <SelectItem key={phase} value={phase}>
+                        {phase}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {view === 'cards' ? (
+                <>
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {filteredMarkets.map((market) => (
+                      <Card 
+                        key={market.id} 
+                        className="hover:shadow-md transition-shadow cursor-pointer"
+                        onClick={() => handleMarketRowClick(market)}
+                      >
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-lg">{market.name}</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                          {/* Properties Count */}
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Building2 className="h-4 w-4" />
+                            <span>{market.propertyCount} properties</span>
+                          </div>
+                          
+                          {/* Franchisees Section */}
+                          {market.franchisees.length > 0 && (
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2 text-sm font-medium">
+                                <Users className="h-4 w-4" />
+                                <span>Franchisees</span>
+                              </div>
+                              <div className="space-y-1">
+                                {market.franchisees.map((franchisee) => (
+                                  <div key={franchisee.id} className="flex items-center gap-2 p-1">
+                                    <div className="flex-shrink-0">
+                                      {franchisee.avatar_url ? (
+                                        <img 
+                                          src={franchisee.avatar_url} 
+                                          alt={franchisee.full_name || 'Franchisee'} 
+                                          className="w-6 h-6 rounded-full object-cover"
+                                        />
+                                      ) : (
+                                        <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center">
+                                          <User className="h-3 w-3 text-gray-600" />
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-medium truncate">
+                                        {franchisee.full_name || 'Unnamed Franchisee'}
+                                      </p>
+                                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                        {franchisee.email && (
+                                          <div className="flex items-center gap-1">
+                                            <Mail className="h-3 w-3" />
+                                            <span className="truncate">{franchisee.email}</span>
+                                          </div>
+                                        )}
+                                        {franchisee.phone && (
+                                          <div className="flex items-center gap-1">
+                                            <Phone className="h-3 w-3" />
+                                            <span>{franchisee.phone}</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Action Button */}
+                          <div className="pt-1 flex justify-end">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                router.push(`/markets/${market.id}`)
+                              }}
+                            >
+                              View Details
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                  
+                  {filteredMarkets.length === 0 && (
+                    <div className="text-center py-12">
+                      <MapPin className="mx-auto h-12 w-12 text-muted-foreground" />
+                      <h3 className="mt-4 text-lg font-medium">No markets found</h3>
+                      <p className="mt-2 text-muted-foreground">
+                        {phaseFilter === 'all' 
+                          ? 'No markets available.' 
+                          : `No markets found with phase "${phaseFilter}".`
+                        }
+                      </p>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <DataTable 
+                  columns={createColumns(handleViewUpdates)} 
+                  data={filteredMarkets} 
+                  searchKey="name"
+                  searchPlaceholder="Filter markets by name..."
+                  onRowClick={handleMarketRowClick}
+                />
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Updates Modal */}
+        <Sheet open={updatesModalOpen} onOpenChange={setUpdatesModalOpen}>
+          <SheetContent side="right" className="w-[400px] sm:w-[540px] z-[60]">
+            <SheetHeader>
+              <SheetTitle className="flex items-center gap-2">
+                <MessageSquare className="h-5 w-5" />
+                Market Updates
+              </SheetTitle>
+              <SheetDescription>
+                {selectedMarketForUpdates?.name || 'Market'} - View and manage updates
+              </SheetDescription>
+              <div className="pt-2">
+                <Button
+                  variant="link"
+                  onClick={handleViewMarketDetails}
+                  className="p-0 h-auto text-blue-600 hover:text-blue-800"
+                >
+                  View Market Details
+                </Button>
+              </div>
+            </SheetHeader>
+            
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {selectedMarketForUpdates && (() => {
+                const filteredUpdates = marketUpdates.filter(msg => msg.market_id === selectedMarketForUpdates.id)
+                return filteredUpdates.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-center text-gray-500">
+                    <MessageSquare className="h-12 w-12 mb-3 text-gray-300" />
+                    <p className="font-medium">No updates yet</p>
+                    <p className="text-sm mt-1">Start a conversation for this market</p>
+                  </div>
+                ) : (
+                  filteredUpdates.map((message) => {
+                    const isOrgAdmins = message.author === 'Org Admins'
+                    
+                    return (
+                      <div key={message.id} className="group transition-all duration-500">
+                        <div className="flex items-start gap-3">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0 ${
+                            isOrgAdmins ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
+                          }`}>
+                            {isOrgAdmins ? 'OA' : 'MP'}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-sm font-medium text-gray-900">
+                                {message.author}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                {new Date(message.created_at).toLocaleDateString()}
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-700 leading-relaxed">
+                              {message.message}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })
+                )
+              })()}
+            </div>
+
+            {/* Add Update Form */}
+            {selectedMarketForUpdates && (
+              <div className="border-t p-4">
+                <MarketUpdateForm
+                  marketId={selectedMarketForUpdates.id}
+                  marketName={selectedMarketForUpdates.name}
+                  onUpdate={handleUpdateMarketUpdates}
+                  editingUpdate={editingUpdate}
+                  onCancelEdit={handleCancelEdit}
+                  isCompact={true}
+                />
+              </div>
+            )}
+          </SheetContent>
+        </Sheet>
+
+        {/* Market Details Modal */}
+        <Sheet open={marketDetailsModalOpen} onOpenChange={setMarketDetailsModalOpen}>
+          <SheetContent 
+            side="right" 
+            className="w-[95vw] max-w-none z-[70] transition-all duration-300"
+            style={{
+              right: updatesModalOpen ? '400px' : '0px'
+            }}
+          >
+            <SheetHeader>
+              <SheetTitle className="flex items-center gap-2">
+                <Building2 className="h-5 w-5" />
+                Market Details
+              </SheetTitle>
+              <SheetDescription>
+                {selectedMarketForUpdates?.name || 'Market'} - Detailed information and location
+              </SheetDescription>
+            </SheetHeader>
+            
+            <div className="flex-1 overflow-y-auto p-4">
+              {/* Map Placeholder */}
+              <div className="w-full h-full bg-gray-100 border border-gray-200 rounded-lg flex items-center justify-center">
+                <div className="text-center text-gray-500">
+                  <MapPin className="h-16 w-16 mx-auto mb-4" />
+                  <p className="text-lg font-medium">Map placeholder for {selectedMarketForUpdates?.name}</p>
+                  <p className="text-sm text-gray-400">Interactive map would be displayed here</p>
+                </div>
+              </div>
+            </div>
+          </SheetContent>
+        </Sheet>
+
+      </SidebarInset>
+    </SidebarProvider>
+  )
+}
