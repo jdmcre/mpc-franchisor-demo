@@ -1,7 +1,7 @@
 'use client'
 
 import { notFound } from 'next/navigation'
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -81,6 +81,7 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
   const [modalProperty, setModalProperty] = useState<Property | null>(null)
   const [pdfModalOpen, setPdfModalOpen] = useState(false)
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
+  const propertiesListRef = useRef<HTMLDivElement>(null)
 
   // Get unique phases from properties
   const availablePhases = useMemo(() => {
@@ -190,8 +191,22 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
     }
   }
 
+  const scrollToProperty = (propertyId: string) => {
+    if (propertiesListRef.current) {
+      const propertyElement = propertiesListRef.current.querySelector(`[data-property-id="${propertyId}"]`)
+      if (propertyElement) {
+        propertyElement.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+          inline: 'nearest'
+        })
+      }
+    }
+  }
+
   const handlePropertySelect = (propertyId: string) => {
     setSelectedPropertyId(propertyId)
+    scrollToProperty(propertyId)
   }
 
   const handleViewDetails = (property: Property) => {
@@ -306,11 +321,12 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
                     </div>
                   </CardHeader>
                   <CardContent className="flex-1 overflow-y-auto min-h-0">
-                    <div className="space-y-3">
+                    <div ref={propertiesListRef} className="space-y-3">
                       {filteredProperties.length > 0 ? (
                         filteredProperties.map((property) => (
                         <div
-                          key={property.id} 
+                          key={property.id}
+                          data-property-id={property.id}
                           className={`group relative overflow-hidden rounded-xl border bg-white shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer ${
                             selectedPropertyId === property.id 
                               ? 'ring-2 ring-blue-500/20 border-blue-200 bg-blue-50/30' 

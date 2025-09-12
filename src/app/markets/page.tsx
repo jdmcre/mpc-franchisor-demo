@@ -77,16 +77,23 @@ export default function MarketsPage() {
   const allPhases = useMemo(() => {
     const standardPhases = ['intro', 'site_selection', 'loi', 'lease', 'closed']
     const marketPhases = new Set<string>()
+    
+    // Collect unique phases from markets, normalizing case
     markets.forEach(market => {
-      market.phases.forEach(phase => marketPhases.add(phase))
+      market.phases.forEach(phase => {
+        if (phase && phase.trim()) {
+          marketPhases.add(phase.toLowerCase().trim())
+        }
+      })
     })
     
     // Combine standard phases with any additional phases found in markets
-    const combinedPhases = [...new Set([...standardPhases, ...Array.from(marketPhases)])]
+    // Use Set to ensure no duplicates
+    const allUniquePhases = new Set([...standardPhases, ...Array.from(marketPhases)])
     
     // Sort phases according to the specific order requested
     const phaseOrder = ['intro', 'site_selection', 'loi', 'lease', 'closed']
-    return combinedPhases.sort((a, b) => {
+    return Array.from(allUniquePhases).sort((a, b) => {
       const indexA = phaseOrder.indexOf(a)
       const indexB = phaseOrder.indexOf(b)
       
@@ -125,7 +132,11 @@ export default function MarketsPage() {
     if (phaseFilter === 'all') {
       return markets
     }
-    return markets.filter(market => market.phases.includes(phaseFilter))
+    return markets.filter(market => 
+      market.phases.some(phase => 
+        phase && phase.toLowerCase().trim() === phaseFilter.toLowerCase().trim()
+      )
+    )
   }, [markets, phaseFilter])
 
   const fetchMarketUpdates = async () => {
@@ -284,7 +295,7 @@ export default function MarketsPage() {
                             <div className="space-y-1">
                               <div className="flex items-center gap-2 text-sm font-medium">
                                 <Users className="h-4 w-4" />
-                                <span>Franchisees</span>
+                                <span>Franchisee</span>
                               </div>
                               <div className="space-y-1">
                                 {market.franchisees.map((franchisee) => {
