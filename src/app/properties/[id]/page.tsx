@@ -17,7 +17,7 @@ import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/app-sidebar'
 import { MarketMap } from '@/components/market-map'
 import { supabase, Property } from '@/lib/supabase'
-import { MapPin } from 'lucide-react'
+import { MapPin, Building2 } from 'lucide-react'
 
 
 

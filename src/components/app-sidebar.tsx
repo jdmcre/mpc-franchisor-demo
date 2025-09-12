@@ -1,7 +1,7 @@
 "use client"
 
 import type * as React from "react"
-import { Building2, MapPin, GalleryVerticalEnd, Globe, MessageSquare } from "lucide-react"
+import { MapPin, GalleryVerticalEnd } from "lucide-react"
 
 import { NavMain } from "@/components/nav-main"
 import { NavUser } from "@/components/nav-user"
