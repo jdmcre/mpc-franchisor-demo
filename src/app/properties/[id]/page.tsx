@@ -219,7 +219,7 @@ export default function PropertyPage({ params }: { params: Promise<{ id: string 
                           console.error('Image failed to load:', property.photo_url);
                           e.currentTarget.style.display = 'none';
                           // Show fallback
-                          const fallback = e.currentTarget.parentElement?.querySelector('.image-fallback');
+                          const fallback = e.currentTarget.parentElement?.querySelector('.image-fallback') as HTMLElement;
                           if (fallback) fallback.style.display = 'flex';
                         }}
                         onLoad={() => {
