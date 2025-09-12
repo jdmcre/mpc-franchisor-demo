@@ -44,6 +44,22 @@ interface MarketWithDetails extends Market {
   }>
 }
 
+// Function to normalize phase display text
+const normalizePhaseText = (phase: string): string => {
+  if (!phase) return phase
+  
+  // Handle special case for LOI
+  if (phase.toLowerCase() === 'loi') {
+    return 'LOI'
+  }
+  
+  // Replace underscores with spaces and capitalize each word
+  return phase
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ')
+}
+
 export const createColumns = (
   onViewUpdates: (marketId: string) => void
 ): ColumnDef<MarketWithDetails>[] => [
@@ -152,7 +168,7 @@ export const createColumns = (
       const phase = phases[0]
       return (
         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-          {phase}
+          {normalizePhaseText(phase)}
         </span>
       )
     },

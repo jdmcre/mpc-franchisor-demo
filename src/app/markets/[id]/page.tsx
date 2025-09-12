@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import React, { useState, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { 
   Breadcrumb, 
@@ -13,11 +14,12 @@ import {
   BreadcrumbPage, 
   BreadcrumbSeparator 
 } from '@/components/ui/breadcrumb'
+import { DataService } from '@/lib/data-service'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/app-sidebar'
 import { MarketMap } from '@/components/market-map'
 import { supabase, Property } from '@/lib/supabase'
-import { MapPin, Building2, DollarSign, ThumbsUp, ThumbsDown, Filter, Calendar, FileText, Download } from 'lucide-react'
+import { MapPin, Building2, DollarSign, ThumbsUp, ThumbsDown, Filter, Calendar, FileText, Download, X, File, Layout } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
@@ -66,17 +68,7 @@ async function getClient(id: string): Promise<Client | null> {
 }
 
 async function getMarketProperties(marketId: string): Promise<Property[]> {
-  const { data, error } = await supabase
-    .from('properties')
-    .select('*')
-    .eq('market_id', marketId)
-    .order('created_at', { ascending: false })
-
-  if (error || !data) {
-    return []
-  }
-
-  return data
+  return await DataService.getPropertiesByMarket(marketId)
 }
 
 export default function MarketPage({ params }: { params: Promise<{ id: string }> }) {
@@ -87,6 +79,8 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
   const [selectedPhase, setSelectedPhase] = useState<string>('all')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [modalProperty, setModalProperty] = useState<Property | null>(null)
+  const [pdfModalOpen, setPdfModalOpen] = useState(false)
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null)
 
   // Get unique phases from properties
   const availablePhases = useMemo(() => {
@@ -208,6 +202,17 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
   const closeModal = () => {
     setIsModalOpen(false)
     setModalProperty(null)
+    // Don't clear selectedPropertyId here - let it persist for map highlighting
+  }
+
+  const handlePdfClick = (url: string) => {
+    setPdfUrl(url)
+    setPdfModalOpen(true)
+  }
+
+  const closePdfModal = () => {
+    setPdfModalOpen(false)
+    setPdfUrl(null)
   }
 
   // Clear filter
@@ -304,7 +309,7 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
                     <div className="space-y-3">
                       {filteredProperties.length > 0 ? (
                         filteredProperties.map((property) => (
-                        <div 
+                        <div
                           key={property.id} 
                           className={`group relative overflow-hidden rounded-xl border bg-white shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer ${
                             selectedPropertyId === property.id 
@@ -313,11 +318,12 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
                           }`}
                           onClick={() => handleViewDetails(property)}
                         >
-                          <div className="p-5">
+                          {/* Content */}
+                          <div className="p-4 sm:p-5">
                             {/* Header with title and badge */}
-                            <div className="flex items-start justify-between mb-3">
+                            <div className="flex items-start justify-between mb-3 gap-2">
                               <div className="flex-1 min-w-0">
-                                <h3 className="font-semibold text-lg text-gray-900 truncate">
+                                <h3 className="font-semibold text-base sm:text-lg text-gray-900 line-clamp-2 leading-tight">
                                   <a 
                                     href={`/properties/${property.id}`}
                                     className="text-blue-600 hover:text-blue-700 transition-colors"
@@ -329,30 +335,30 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
                               </div>
                               <Badge 
                                 variant={getPhaseVariant(property.phase)}
-                                className="ml-2 shrink-0 text-xs font-medium"
+                                className="ml-2 shrink-0 text-xs font-medium whitespace-nowrap"
                               >
                                 {getPhaseLabel(property.phase)}
                               </Badge>
                             </div>
-                            
+                          
                             {/* Property details */}
-                            <div className="space-y-2.5 mb-4">
-                              <div className="flex items-center gap-2 text-sm text-gray-600">
-                                <MapPin className="h-4 w-4 text-gray-400" />
-                                <span className="truncate">
+                            <div className="space-y-2 mb-4">
+                              <div className="flex items-start gap-2 text-sm text-gray-600">
+                                <MapPin className="h-4 w-4 text-gray-400 mt-0.5 shrink-0" />
+                                <span className="line-clamp-2 leading-relaxed">
                                   {property.address_line && `${property.address_line}, `}
                                   {property.city}, {property.state} {property.postal_code}
                                 </span>
                               </div>
                               
                               <div className="flex items-center gap-2 text-sm text-gray-600">
-                                <Building2 className="h-4 w-4 text-gray-400" />
-                                <span>{formatNumber(property.size_sqft || 0)} sq ft</span>
+                                <Building2 className="h-4 w-4 text-gray-400 shrink-0" />
+                                <span className="truncate">{formatNumber(property.size_sqft || 0)} sq ft</span>
                               </div>
                               
-                              <div className="flex items-center gap-2 text-sm text-gray-600">
-                                <DollarSign className="h-4 w-4 text-gray-400" />
-                                <span>
+                              <div className="flex items-start gap-2 text-sm text-gray-600">
+                                <DollarSign className="h-4 w-4 text-gray-400 mt-0.5 shrink-0" />
+                                <span className="line-clamp-2 leading-relaxed">
                                   {formatCurrency(property.base_rent_psf || 0)}/sq ft
                                   {property.expenses_psf && ` + ${formatCurrency(property.expenses_psf)} expenses`}
                                 </span>
@@ -360,7 +366,7 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
                             </div>
 
                             {/* Ranking section */}
-                            <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-3 border-t border-gray-100">
                               <div className="flex items-center gap-1">
                                 <span className="text-xs text-gray-500 font-medium">Ranking:</span>
                                 <div className="flex items-center gap-1">
@@ -379,7 +385,7 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
                                   </button>
                                 </div>
                               </div>
-                              <div className="text-xs text-gray-400">
+                              <div className="text-xs text-gray-400 text-right sm:text-left">
                                 Click to view details
                               </div>
                             </div>
@@ -462,12 +468,22 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
                 {/* Top Row - Property Image and Property Info side by side */}
                 <div className="flex gap-4">
                   {/* Property Image */}
-                  <div className="w-32 h-24 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <div className="text-center">
-                      <Building2 className="h-8 w-8 text-gray-400 mx-auto mb-1" />
-                      <span className="text-gray-400 text-xs">Property Image</span>
+                  {modalProperty.photo_url ? (
+                    <div className="w-36 h-28 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
+                      <img 
+                        src={modalProperty.photo_url} 
+                        alt={modalProperty.title || modalProperty.address_line || 'Property image'} 
+                        className="w-full h-full object-cover"
+                      />
                     </div>
-                  </div>
+                  ) : (
+                    <div className="w-36 h-28 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <div className="text-center">
+                        <Building2 className="h-8 w-8 text-gray-400 mx-auto mb-1" />
+                        <span className="text-gray-400 text-xs">No image</span>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Property Info */}
                   <div className="flex-1 space-y-2">
@@ -486,7 +502,10 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
                         <span>{formatNumber(modalProperty.size_sqft)} sq ft</span>
                       )}
                       {modalProperty.base_rent_psf && (
-                        <span>{formatCurrency(modalProperty.base_rent_psf)}/sq ft</span>
+                        <span>
+                          {formatCurrency(modalProperty.base_rent_psf)}/sq ft
+                          {modalProperty.expenses_psf && ` + ${formatCurrency(modalProperty.expenses_psf)} expenses`}
+                        </span>
                       )}
                     </div>
                     <Badge 
@@ -498,65 +517,115 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
                   </div>
                 </div>
 
+                {/* Marketing Material */}
+                <div>
+                  <div className="space-y-2">
+                    <div 
+                      className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors cursor-pointer"
+                      onClick={() => handlePdfClick('https://www.venturedfw.com/files/listings/2124/Abilene%20-%20Former%20Popeyes%20-%20841%20Ambler%20Ave.pdf')}
+                    >
+                      <FileText className="h-4 w-4" />
+                      <span>Marketing Material</span>
+                    </div>
+                    <p className="text-xs text-gray-500 italic">*sample pdf for demo purposes</p>
+                  </div>
+                </div>
+
                 {/* About Space */}
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-3">ABOUT SPACE</h3>
                   <div className="space-y-3">
-                    <div className="flex items-start gap-2">
-                      <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
-                      <p className="text-sm text-gray-600">Modern retail space with high ceilings and natural light</p>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
-                      <p className="text-sm text-gray-600">Flexible layout perfect for various business types</p>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
-                      <p className="text-sm text-gray-600">Located in prime commercial district with excellent foot traffic</p>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
-                      <p className="text-sm text-gray-600">Easy access to major transportation routes</p>
-                    </div>
+                    {modalProperty.notes ? (
+                      <div className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">
+                        {modalProperty.notes}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-gray-500 italic">
+                        No additional information available for this space.
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 {/* Documents */}
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Documents</h3>
-                  <div className="space-y-2">
-                    <a 
-                      href="#" 
-                      className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors"
-                    >
-                      <FileText className="h-4 w-4" />
-                      <span>Lease Agreement.pdf</span>
-                      <Download className="h-3 w-3 ml-auto" />
-                    </a>
-                    <a 
-                      href="#" 
-                      className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors"
-                    >
-                      <FileText className="h-4 w-4" />
-                      <span>Property Survey.pdf</span>
-                      <Download className="h-3 w-3 ml-auto" />
-                    </a>
-                    <a 
-                      href="#" 
-                      className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors"
-                    >
-                      <FileText className="h-4 w-4" />
-                      <span>Floor Plan.pdf</span>
-                      <Download className="h-3 w-3 ml-auto" />
-                    </a>
-                    <a 
-                      href="#" 
-                      className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors"
-                    >
-                      <FileText className="h-4 w-4" />
-                      <span>Inspection Report.pdf</span>
-                      <Download className="h-3 w-3 ml-auto" />
-                    </a>
+                  <div className="grid grid-cols-3 gap-4">
+                    {/* Space Docs */}
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">Space Docs</h4>
+                      <div className="space-y-1">
+                        <a 
+                          href="#" 
+                          className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors"
+                          onClick={(e) => e.preventDefault()}
+                        >
+                          <Layout className="h-4 w-4" />
+                          <span>Floor Plan.pdf</span>
+                        </a>
+                        <a 
+                          href="#" 
+                          className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors"
+                          onClick={(e) => e.preventDefault()}
+                        >
+                          <File className="h-4 w-4" />
+                          <span>CAD Drawing.dwg</span>
+                        </a>
+                      </div>
+                    </div>
+
+                    {/* Demographics */}
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">Demographics</h4>
+                      <div className="space-y-1">
+                        <a 
+                          href="#" 
+                          className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors"
+                          onClick={(e) => e.preventDefault()}
+                        >
+                          <FileText className="h-4 w-4" />
+                          <span>Market Analysis.pdf</span>
+                        </a>
+                        <a 
+                          href="#" 
+                          className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors"
+                          onClick={(e) => e.preventDefault()}
+                        >
+                          <FileText className="h-4 w-4" />
+                          <span>Population Data.pdf</span>
+                        </a>
+                        <a 
+                          href="#" 
+                          className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors"
+                          onClick={(e) => e.preventDefault()}
+                        >
+                          <FileText className="h-4 w-4" />
+                          <span>Traffic Study.pdf</span>
+                        </a>
+                      </div>
+                    </div>
+
+                    {/* Deal Docs */}
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">Deal Docs</h4>
+                      <div className="space-y-1">
+                        <a 
+                          href="#" 
+                          className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors"
+                          onClick={(e) => e.preventDefault()}
+                        >
+                          <FileText className="h-4 w-4" />
+                          <span>Lease Agreement.pdf</span>
+                        </a>
+                        <a 
+                          href="#" 
+                          className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors"
+                          onClick={(e) => e.preventDefault()}
+                        >
+                          <FileText className="h-4 w-4" />
+                          <span>LOI Template.pdf</span>
+                        </a>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -582,6 +651,26 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
           )}
         </DialogContent>
       </Dialog>
+
+      {/* PDF Modal */}
+      <Dialog open={pdfModalOpen} onOpenChange={setPdfModalOpen}>
+        <DialogContent className="max-w-6xl max-h-[90vh] p-0">
+          <DialogHeader className="p-4 border-b">
+            <DialogTitle>Marketing Material</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 p-4">
+            {pdfUrl && (
+              <iframe
+                src={`${pdfUrl}#toolbar=1&navpanes=1&scrollbar=1`}
+                className="w-full h-[70vh] border-0 rounded-lg"
+                title="Marketing Material PDF"
+                allowFullScreen
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </div>
   )
 }

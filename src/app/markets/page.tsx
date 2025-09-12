@@ -22,7 +22,7 @@ import { Market, MarketUpdate, supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { MapPin, Building2, User, Mail, Phone, Users, MessageSquare, Edit, Trash2, X, Filter } from 'lucide-react'
+import { MapPin, Building2, User, Users, MessageSquare, Edit, Trash2, X, Filter } from 'lucide-react'
 import { ViewToggle } from '@/components/view-toggle'
 import { DataTable } from '@/components/ui/data-table'
 import { createColumns } from './columns'
@@ -32,6 +32,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 
 interface MarketWithDetails extends Market {
   propertyCount: number
+  phases: string[]
   franchisees: Array<{
     id: string
     full_name: string | null
@@ -72,14 +73,52 @@ export default function MarketsPage() {
     setMarketDetailsModalOpen(true)
   }
 
-  // Get all unique phases from markets
+  // Define all possible phases for the filter dropdown in specific order
   const allPhases = useMemo(() => {
-    const phases = new Set<string>()
+    const standardPhases = ['intro', 'site_selection', 'loi', 'lease', 'closed']
+    const marketPhases = new Set<string>()
     markets.forEach(market => {
-      market.phases.forEach(phase => phases.add(phase))
+      market.phases.forEach(phase => marketPhases.add(phase))
     })
-    return Array.from(phases).sort()
+    
+    // Combine standard phases with any additional phases found in markets
+    const combinedPhases = [...new Set([...standardPhases, ...Array.from(marketPhases)])]
+    
+    // Sort phases according to the specific order requested
+    const phaseOrder = ['intro', 'site_selection', 'loi', 'lease', 'closed']
+    return combinedPhases.sort((a, b) => {
+      const indexA = phaseOrder.indexOf(a)
+      const indexB = phaseOrder.indexOf(b)
+      
+      // If both phases are in the predefined order, sort by that order
+      if (indexA !== -1 && indexB !== -1) {
+        return indexA - indexB
+      }
+      
+      // If only one is in the predefined order, prioritize it
+      if (indexA !== -1) return -1
+      if (indexB !== -1) return 1
+      
+      // If neither is in the predefined order, sort alphabetically
+      return a.localeCompare(b)
+    })
   }, [markets])
+
+  // Function to normalize phase display text
+  const normalizePhaseText = (phase: string): string => {
+    if (!phase) return phase
+    
+    // Handle special case for LOI
+    if (phase.toLowerCase() === 'loi') {
+      return 'LOI'
+    }
+    
+    // Replace underscores with spaces and capitalize each word
+    return phase
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ')
+  }
 
   // Filter markets based on selected phase
   const filteredMarkets = useMemo(() => {
@@ -206,7 +245,7 @@ export default function MarketsPage() {
                     <SelectItem value="all">All Phases</SelectItem>
                     {allPhases.map((phase) => (
                       <SelectItem key={phase} value={phase}>
-                        {phase}
+                        {normalizePhaseText(phase)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -223,7 +262,15 @@ export default function MarketsPage() {
                         onClick={() => handleMarketRowClick(market)}
                       >
                         <CardHeader className="pb-2">
-                          <CardTitle className="text-lg">{market.name}</CardTitle>
+                          <div className="flex items-center justify-between">
+                            <CardTitle className="text-lg">{market.name}</CardTitle>
+                            {/* Phase Tag */}
+                            {market.phases.length > 0 && (
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                {normalizePhaseText(market.phases[0])}
+                              </span>
+                            )}
+                          </div>
                         </CardHeader>
                         <CardContent className="space-y-2">
                           {/* Properties Count */}
@@ -240,42 +287,34 @@ export default function MarketsPage() {
                                 <span>Franchisees</span>
                               </div>
                               <div className="space-y-1">
-                                {market.franchisees.map((franchisee) => (
-                                  <div key={franchisee.id} className="flex items-center gap-2 p-1">
-                                    <div className="flex-shrink-0">
-                                      {franchisee.avatar_url ? (
-                                        <img 
-                                          src={franchisee.avatar_url} 
-                                          alt={franchisee.full_name || 'Franchisee'} 
-                                          className="w-6 h-6 rounded-full object-cover"
-                                        />
-                                      ) : (
-                                        <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center">
-                                          <User className="h-3 w-3 text-gray-600" />
+                                {market.franchisees.map((franchisee) => {
+                                  // Generate initials from full name
+                                  const getInitials = (name: string | null) => {
+                                    if (!name) return 'U'
+                                    return name
+                                      .split(' ')
+                                      .map(word => word.charAt(0).toUpperCase())
+                                      .join('')
+                                      .slice(0, 2)
+                                  }
+                                  
+                                  return (
+                                    <div key={franchisee.id} className="flex items-center gap-2 p-1">
+                                      <div className="flex-shrink-0">
+                                        <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center">
+                                          <span className="text-xs font-medium text-blue-700">
+                                            {getInitials(franchisee.full_name)}
+                                          </span>
                                         </div>
-                                      )}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <p className="text-sm font-medium truncate">
-                                        {franchisee.full_name || 'Unnamed Franchisee'}
-                                      </p>
-                                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                        {franchisee.email && (
-                                          <div className="flex items-center gap-1">
-                                            <Mail className="h-3 w-3" />
-                                            <span className="truncate">{franchisee.email}</span>
-                                          </div>
-                                        )}
-                                        {franchisee.phone && (
-                                          <div className="flex items-center gap-1">
-                                            <Phone className="h-3 w-3" />
-                                            <span>{franchisee.phone}</span>
-                                          </div>
-                                        )}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium truncate">
+                                          {franchisee.full_name || 'Unnamed Franchisee'}
+                                        </p>
                                       </div>
                                     </div>
-                                  </div>
-                                ))}
+                                  )
+                                })}
                               </div>
                             </div>
                           )}
@@ -333,7 +372,7 @@ export default function MarketsPage() {
                 Market Updates
               </SheetTitle>
               <SheetDescription>
-                {selectedMarketForUpdates?.name || 'Market'} - View and manage updates
+                {selectedMarketForUpdates?.name || 'Market'}
               </SheetDescription>
               <div className="pt-2">
                 <Button
@@ -388,8 +427,8 @@ export default function MarketsPage() {
               })()}
             </div>
 
-            {/* Add Update Form */}
-            {selectedMarketForUpdates && (
+            {/* Add Update Form - Hidden for table view */}
+            {/* {selectedMarketForUpdates && (
               <div className="border-t p-4">
                 <MarketUpdateForm
                   marketId={selectedMarketForUpdates.id}
@@ -400,7 +439,7 @@ export default function MarketsPage() {
                   isCompact={true}
                 />
               </div>
-            )}
+            )} */}
           </SheetContent>
         </Sheet>
 

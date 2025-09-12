@@ -32,6 +32,7 @@ export interface Property {
   phase: string
   display_number?: number
   photo_url?: string
+  notes?: string
   created_at: string
   updated_at: string
 }

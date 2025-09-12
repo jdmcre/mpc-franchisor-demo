@@ -22,6 +22,7 @@ export function MarketMap({ properties, marketName, className = '', selectedProp
   const resizeObserver = useRef<ResizeObserver | null>(null)
   const [mapLoaded, setMapLoaded] = useState(false)
   const abortController = useRef<AbortController | null>(null)
+  const markersRef = useRef<mapboxgl.Marker[]>([])
 
   // Calculate center point and optimal zoom from properties using useMemo
   const { centerLat, centerLng, zoom } = useMemo(() => {
@@ -31,7 +32,7 @@ export function MarketMap({ properties, marketName, className = '', selectedProp
 
     if (properties.length > 0) {
       // Filter properties with valid coordinates
-      const validProperties = properties.filter(p => 
+      const validProperties = properties.filter((p): p is Property & { lat: number; lng: number } => 
         typeof p.lat === 'number' && 
         typeof p.lng === 'number' && 
         !isNaN(p.lat) && 
@@ -40,8 +41,8 @@ export function MarketMap({ properties, marketName, className = '', selectedProp
       
       if (validProperties.length > 0) {
         // Calculate center from valid properties
-        lat = validProperties.reduce((sum, p) => sum + (p.lat || 0), 0) / validProperties.length
-        lng = validProperties.reduce((sum, p) => sum + (p.lng || 0), 0) / validProperties.length
+        lat = validProperties.reduce((sum, p) => sum + p.lat, 0) / validProperties.length
+        lng = validProperties.reduce((sum, p) => sum + p.lng, 0) / validProperties.length
         
         // Calculate bounds to fit all markers
         if (validProperties.length === 1) {
@@ -49,8 +50,8 @@ export function MarketMap({ properties, marketName, className = '', selectedProp
           z = 15
         } else {
           // Calculate bounds for multiple properties
-          const lats = validProperties.map(p => p.lat!)
-          const lngs = validProperties.map(p => p.lng!)
+          const lats = validProperties.map(p => p.lat)
+          const lngs = validProperties.map(p => p.lng)
           
           const minLat = Math.min(...lats)
           const maxLat = Math.max(...lats)
@@ -152,6 +153,14 @@ export function MarketMap({ properties, marketName, className = '', selectedProp
         abortController.current.abort()
       }
 
+      // Clean up markers
+      markersRef.current.forEach(marker => {
+        if (marker && typeof marker.remove === 'function') {
+          marker.remove()
+        }
+      })
+      markersRef.current = []
+
       // Clean up ResizeObserver
       if (resizeObserver.current) {
         try {
@@ -202,12 +211,16 @@ export function MarketMap({ properties, marketName, className = '', selectedProp
     if (!map.current || !mapLoaded) return
 
     try {
-      // Clear existing markers
-      const existingMarkers = document.querySelectorAll('.mapboxgl-marker')
-      existingMarkers.forEach(marker => marker.remove())
+      // Clear existing markers using our ref
+      markersRef.current.forEach(marker => {
+        if (marker && typeof marker.remove === 'function') {
+          marker.remove()
+        }
+      })
+      markersRef.current = []
 
       // Add markers for properties with valid coordinates
-      const validProperties = properties.filter(p => 
+      const validProperties = properties.filter((p): p is Property & { lat: number; lng: number } => 
         typeof p.lat === 'number' && 
         typeof p.lng === 'number' && 
         !isNaN(p.lat) && 
@@ -242,17 +255,22 @@ export function MarketMap({ properties, marketName, className = '', selectedProp
           </div>
         `)
 
-        const marker = new mapboxgl.Marker(el)
-          .setLngLat([property.lng, property.lat])
-          .setPopup(popup)
-          .addTo(map.current!)
+        if (property.lat && property.lng) {
+          const marker = new mapboxgl.Marker(el)
+            .setLngLat([property.lng, property.lat])
+            .setPopup(popup)
+            .addTo(map.current!)
 
-        // Add click handler to marker
-        el.addEventListener('click', () => {
-          if (onPropertySelect) {
-            onPropertySelect(property.id)
-          }
-        })
+          // Store marker in ref for proper cleanup
+          markersRef.current.push(marker)
+
+          // Add click handler to marker
+          el.addEventListener('click', () => {
+            if (onPropertySelect) {
+              onPropertySelect(property.id)
+            }
+          })
+        }
       })
 
       // Fit map to show all markers with optimal zoom
@@ -279,7 +297,7 @@ export function MarketMap({ properties, marketName, className = '', selectedProp
     } catch (error) {
       console.warn('Error adding markers to map:', error)
     }
-  }, [properties, mapLoaded, selectedPropertyId, onPropertySelect])
+  }, [properties, mapLoaded, selectedPropertyId])
 
 
 

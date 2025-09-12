@@ -5,8 +5,7 @@ import { Building2, MapPin, GalleryVerticalEnd, Globe, MessageSquare } from "luc
 
 import { NavMain } from "@/components/nav-main"
 import { NavUser } from "@/components/nav-user"
-import { TeamSwitcher } from "@/components/team-switcher"
-import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarRail } from "@/components/ui/sidebar"
+import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarRail, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from "@/components/ui/sidebar"
 
 const data = {
   user: {
@@ -22,18 +21,18 @@ const data = {
     },
   ],
   navMain: [
-    {
-      title: "Properties",
-      url: "/properties",
-      icon: Building2,
-      isActive: true,
-      items: [
-        {
-          title: "All Properties",
-          url: "/properties",
-        },
-      ],
-    },
+    // {
+    //   title: "Properties",
+    //   url: "/properties",
+    //   icon: Building2,
+    //   isActive: true,
+    //   items: [
+    //     {
+    //       title: "All Properties",
+    //       url: "/properties",
+    //     },
+    //   ],
+    // },
     {
       title: "Markets",
       url: "/markets",
@@ -82,7 +81,22 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="icon" {...props} suppressHydrationWarning>
       <SidebarHeader>
-        <TeamSwitcher teams={data.teams} />
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              size="lg"
+              className="cursor-default"
+            >
+              <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
+                <GalleryVerticalEnd className="size-4" />
+              </div>
+              <div className="grid flex-1 text-left text-sm leading-tight">
+                <span className="truncate font-medium">Demo Franchise Co</span>
+                <span className="truncate text-xs">Franchisor Portal</span>
+              </div>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={data.navMain} />

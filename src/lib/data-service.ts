@@ -1,20 +1,20 @@
 import { supabase, Market, Property, MarketUpdate } from './supabase'
 
-// School of Rock client ID - hardcoded for this portal
-const SCHOOL_OF_ROCK_CLIENT_ID = '2ec564e4-d76f-4aca-8e9c-d0b74cc4b7f5'
+// Client ID for this portal - updated to new client
+const CLIENT_ID = '39022dd3-45f4-4e82-b9bd-5c9733404728'
 
 export class DataService {
 
-  // Fetch all School of Rock markets
+  // Fetch all markets for this client
   static async getMarkets(): Promise<Market[]> {
     const { data, error } = await supabase
       .from('markets')
       .select('*')
-      .eq('client_id', SCHOOL_OF_ROCK_CLIENT_ID)
+      .eq('client_id', CLIENT_ID)
       .order('name')
     
     if (error) {
-      console.error('Error fetching School of Rock markets:', error)
+      console.error('Error fetching markets:', error)
       return []
     }
     
@@ -39,7 +39,7 @@ export class DataService {
 
 
 
-  // Fetch all School of Rock properties
+  // Fetch all properties for this client
   static async getProperties(): Promise<Property[]> {
     const { data, error } = await supabase
       .from('properties')
@@ -47,18 +47,18 @@ export class DataService {
         *,
         markets!inner(client_id)
       `)
-      .eq('markets.client_id', SCHOOL_OF_ROCK_CLIENT_ID)
+      .eq('markets.client_id', CLIENT_ID)
       .order('created_at', { ascending: false })
     
     if (error) {
-      console.error('Error fetching School of Rock properties:', error)
+      console.error('Error fetching properties:', error)
       return []
     }
     
     return data || []
   }
 
-  // Fetch properties by market (only School of Rock markets)
+  // Fetch properties by market (only for this client)
   static async getPropertiesByMarket(marketId: string): Promise<Property[]> {
     const { data, error } = await supabase
       .from('properties')
@@ -67,7 +67,7 @@ export class DataService {
         markets!inner(client_id)
       `)
       .eq('market_id', marketId)
-      .eq('markets.client_id', SCHOOL_OF_ROCK_CLIENT_ID)
+      .eq('markets.client_id', CLIENT_ID)
       .order('created_at', { ascending: false })
     
     if (error) {
@@ -98,7 +98,7 @@ export class DataService {
 
 
 
-  // Fetch School of Rock dashboard stats with enhanced market property counts
+  // Fetch dashboard stats with enhanced market property counts
   static async getDashboardStats() {
     const [markets, properties] = await Promise.all([
       this.getMarkets(),
