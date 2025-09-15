@@ -78,6 +78,7 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
   const [market, setMarket] = useState<Market | null>(null)
   const [properties, setProperties] = useState<Property[]>([])
   const [loading, setLoading] = useState(true)
+  const [isUpdating, setIsUpdating] = useState(false)
   const [selectedPhase, setSelectedPhase] = useState<string>('all')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [modalProperty, setModalProperty] = useState<Property | null>(null)
@@ -124,6 +125,48 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
     
     loadData()
   }, [params])
+
+  // Set up realtime subscription for properties changes
+  React.useEffect(() => {
+    if (!market?.id) return
+
+    const channel = supabase
+      .channel(`properties-${market.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'properties',
+          filter: `market_id=eq.${market.id}`
+        },
+        async (payload) => {
+          console.log('Property change detected:', payload)
+          
+          try {
+            setIsUpdating(true)
+            
+            // Refresh properties data when changes occur
+            const updatedProperties = await getMarketProperties(market.id)
+            setProperties(updatedProperties)
+            
+            // If a property was deleted and it was selected, clear selection
+            if (payload.eventType === 'DELETE' && selectedPropertyId === payload.old_record.id) {
+              setSelectedPropertyId(null)
+            }
+          } catch (error) {
+            console.error('Error handling property change:', error)
+          } finally {
+            setIsUpdating(false)
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [market?.id, selectedPropertyId])
 
   if (loading) {
     return (
@@ -278,11 +321,19 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
               <h1 className="text-3xl font-bold tracking-tight">{market.name}</h1>
               <p className="text-muted-foreground">Market Overview</p>
             </div>
-            <Badge variant="outline" className="text-sm">
-              <MapPin className="w-4 h-4 mr-1" />
-              {filteredProperties.length} Properties
-              {selectedPhase !== 'all' && ` (${properties.length} total)`}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="text-sm">
+                <MapPin className="w-4 h-4 mr-1" />
+                {filteredProperties.length} Properties
+                {selectedPhase !== 'all' && ` (${properties.length} total)`}
+              </Badge>
+              {isUpdating && (
+                <div className="flex items-center gap-1 text-xs text-blue-600">
+                  <div className="animate-spin rounded-full h-3 w-3 border-b border-blue-600"></div>
+                  Updating...
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Map and Properties Layout - Fixed height, no scrolling */}
