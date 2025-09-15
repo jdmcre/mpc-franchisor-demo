@@ -16,9 +16,19 @@ interface MarketMapProps {
   hoveredPropertyId?: string
   isSatelliteView?: boolean
   onPropertySelect?: (propertyId: string) => void
+  territoryPolygon?: {
+    id: string
+    type: string
+    geometry: {
+      type: string
+      coordinates: number[][][]
+    }
+    properties: Record<string, unknown>
+  }
+  showTerritory?: boolean
 }
 
-export function MarketMap({ properties, marketName, className = '', selectedPropertyId, hoveredPropertyId, isSatelliteView = false, onPropertySelect }: MarketMapProps) {
+export function MarketMap({ properties, marketName, className = '', selectedPropertyId, hoveredPropertyId, isSatelliteView = false, onPropertySelect, territoryPolygon, showTerritory = false }: MarketMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null)
   const map = useRef<mapboxgl.Map | null>(null)
   const resizeObserver = useRef<ResizeObserver | null>(null)
@@ -330,6 +340,62 @@ export function MarketMap({ properties, marketName, className = '', selectedProp
       console.warn('Error adding markers to map:', error)
     }
   }, [properties, mapLoaded, selectedPropertyId, hoveredPropertyId])
+
+  // Handle territory polygon display
+  useEffect(() => {
+    if (!map.current || !mapLoaded || !territoryPolygon) return
+
+    const sourceId = 'territory-polygon'
+    const layerId = 'territory-polygon-fill'
+    const outlineLayerId = 'territory-polygon-outline'
+
+    try {
+      // Remove existing territory polygon if it exists
+      if (map.current.getSource(sourceId)) {
+        if (map.current.getLayer(layerId)) {
+          map.current.removeLayer(layerId)
+        }
+        if (map.current.getLayer(outlineLayerId)) {
+          map.current.removeLayer(outlineLayerId)
+        }
+        map.current.removeSource(sourceId)
+      }
+
+      // Add territory polygon if showTerritory is true
+      if (showTerritory) {
+        // Add the GeoJSON source
+        map.current.addSource(sourceId, {
+          type: 'geojson',
+          data: territoryPolygon as any // Type assertion for GeoJSON compatibility
+        })
+
+        // Add the fill layer
+        map.current.addLayer({
+          id: layerId,
+          type: 'fill',
+          source: sourceId,
+          paint: {
+            'fill-color': '#3b82f6',
+            'fill-opacity': 0.2
+          }
+        })
+
+        // Add the outline layer
+        map.current.addLayer({
+          id: outlineLayerId,
+          type: 'line',
+          source: sourceId,
+          paint: {
+            'line-color': '#3b82f6',
+            'line-width': 2,
+            'line-opacity': 0.8
+          }
+        })
+      }
+    } catch (error) {
+      console.warn('Error handling territory polygon:', error)
+    }
+  }, [mapLoaded, territoryPolygon, showTerritory])
 
   // Handle style changes when satellite view toggle changes
   useEffect(() => {

@@ -12,6 +12,15 @@ export interface Market {
   client_id: string
   name: string
   territory?: Record<string, unknown>
+  territory_polygon?: {
+    id: string
+    type: string
+    geometry: {
+      type: string
+      coordinates: number[][][]
+    }
+    properties: Record<string, unknown>
+  }
   created_at: string
   updated_at: string
 }

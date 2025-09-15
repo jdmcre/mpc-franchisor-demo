@@ -19,7 +19,7 @@ import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/app-sidebar'
 import { MarketMap } from '@/components/market-map'
 import { supabase, Property } from '@/lib/supabase'
-import { MapPin, Building2, DollarSign, ThumbsUp, ThumbsDown, Filter, Calendar, FileText, Download, X, File, Layout, Satellite, Map } from 'lucide-react'
+import { MapPin, Building2, DollarSign, ThumbsUp, ThumbsDown, Filter, Calendar, FileText, Download, X, File, Layout, Satellite, Map, MapPinned } from 'lucide-react'
 import { MapListToggle } from '@/components/map-list-toggle'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -33,6 +33,15 @@ interface Market {
   created_at: string
   updated_at: string
   client_id: string | null
+  territory_polygon?: {
+    id: string
+    type: string
+    geometry: {
+      type: string
+      coordinates: number[][][]
+    }
+    properties: Record<string, unknown>
+  }
 }
 
 interface Client {
@@ -78,6 +87,7 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null)
   const [hoveredPropertyId, setHoveredPropertyId] = useState<string | null>(null)
   const [isSatelliteView, setIsSatelliteView] = useState(false)
+  const [showTerritory, setShowTerritory] = useState(false)
   const [market, setMarket] = useState<Market | null>(null)
   const [properties, setProperties] = useState<Property[]>([])
   const [loading, setLoading] = useState(true)
@@ -485,24 +495,37 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
                           <MapPin className="h-5 w-5" />
                           Market Location Map
                         </CardTitle>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setIsSatelliteView(!isSatelliteView)}
-                          className="flex items-center gap-2"
-                        >
-                          {isSatelliteView ? (
-                            <>
-                              <Map className="h-4 w-4" />
-                              Street
-                            </>
-                          ) : (
-                            <>
-                              <Satellite className="h-4 w-4" />
-                              Satellite
-                            </>
+                        <div className="flex items-center gap-2">
+                          {market?.territory_polygon && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setShowTerritory(!showTerritory)}
+                              className="flex items-center gap-2"
+                            >
+                              <MapPinned className="h-4 w-4" />
+                              {showTerritory ? 'Hide Territory' : 'Show Territory'}
+                            </Button>
                           )}
-                        </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setIsSatelliteView(!isSatelliteView)}
+                            className="flex items-center gap-2"
+                          >
+                            {isSatelliteView ? (
+                              <>
+                                <Map className="h-4 w-4" />
+                                Street
+                              </>
+                            ) : (
+                              <>
+                                <Satellite className="h-4 w-4" />
+                                Satellite
+                              </>
+                            )}
+                          </Button>
+                        </div>
                       </div>
                     </CardHeader>
                     <CardContent className="flex-1 p-0 min-h-0">
@@ -514,6 +537,8 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
                         hoveredPropertyId={hoveredPropertyId || undefined}
                         isSatelliteView={isSatelliteView}
                         onPropertySelect={handlePropertySelect}
+                        territoryPolygon={market.territory_polygon}
+                        showTerritory={showTerritory}
                       />
                     </CardContent>
                   </Card>
