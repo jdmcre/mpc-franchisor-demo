@@ -20,8 +20,11 @@ import { AppSidebar } from '@/components/app-sidebar'
 import { MarketMap } from '@/components/market-map'
 import { supabase, Property } from '@/lib/supabase'
 import { MapPin, Building2, DollarSign, ThumbsUp, ThumbsDown, Filter, Calendar, FileText, Download, X, File, Layout, Satellite, Map } from 'lucide-react'
+import { MapListToggle } from '@/components/map-list-toggle'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { DataTable } from '@/components/ui/data-table'
+import { createPropertyColumns } from '../columns'
 
 interface Market {
   id: string
@@ -84,6 +87,7 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
   const [modalProperty, setModalProperty] = useState<Property | null>(null)
   const [pdfModalOpen, setPdfModalOpen] = useState(false)
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
+  const [view, setView] = useState<'map' | 'list'>('map')
   const propertiesListRef = useRef<HTMLDivElement>(null)
 
   // Get unique phases from properties
@@ -321,32 +325,209 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
               <h1 className="text-3xl font-bold tracking-tight">{market.name}</h1>
               <p className="text-muted-foreground">Market Overview</p>
             </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="text-sm">
-                <MapPin className="w-4 h-4 mr-1" />
-                {filteredProperties.length} Properties
-                {selectedPhase !== 'all' && ` (${properties.length} total)`}
-              </Badge>
-              {isUpdating && (
-                <div className="flex items-center gap-1 text-xs text-blue-600">
-                  <div className="animate-spin rounded-full h-3 w-3 border-b border-blue-600"></div>
-                  Updating...
-                </div>
-              )}
+            <div className="flex items-center gap-4">
+              <MapListToggle view={view} onViewChange={setView} />
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-sm">
+                  <MapPin className="w-4 h-4 mr-1" />
+                  {filteredProperties.length} Properties
+                  {selectedPhase !== 'all' && ` (${properties.length} total)`}
+                </Badge>
+                {isUpdating && (
+                  <div className="flex items-center gap-1 text-xs text-blue-600">
+                    <div className="animate-spin rounded-full h-3 w-3 border-b border-blue-600"></div>
+                    Updating...
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Map and Properties Layout - Fixed height, no scrolling */}
+          {/* Main Content Area */}
           {properties.length > 0 ? (
-            <div className="flex-1 flex gap-6 p-4 md:p-6 min-h-0">
-              {/* Properties List - Dynamic width with minimum */}
-              <div className="w-auto min-w-80 flex-shrink-0 min-h-0">
+            view === 'map' ? (
+              /* Map View Layout */
+              <div className="flex-1 flex gap-6 p-4 md:p-6 min-h-0">
+                {/* Properties List - Dynamic width with minimum */}
+                <div className="w-auto min-w-80 flex-shrink-0 min-h-0">
+                  <Card className="h-full flex flex-col">
+                    <CardHeader className="flex-shrink-0">
+                      <div className="flex items-center justify-between mb-3">
+                        <CardTitle className="flex items-center gap-2">
+                          <Building2 className="h-5 w-5" />
+                          Property Locations
+                        </CardTitle>
+                        {selectedPhase !== 'all' && (
+                          <button
+                            onClick={clearFilter}
+                            className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+                          >
+                            <X className="h-3 w-3" />
+                            Clear filter
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Filter className="h-4 w-4 text-gray-400" />
+                        <Select value={selectedPhase} onValueChange={setSelectedPhase}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Filter by phase" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Phases ({properties.length})</SelectItem>
+                            {availablePhases.map(phase => {
+                              const count = properties.filter(p => p.phase === phase).length
+                              return (
+                                <SelectItem key={phase} value={phase}>
+                                  {getPhaseLabel(phase)} ({count})
+                                </SelectItem>
+                              )
+                            })}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="flex-1 overflow-y-auto min-h-0">
+                      <div ref={propertiesListRef} className="space-y-3">
+                        {filteredProperties.length > 0 ? (
+                          filteredProperties.map((property) => (
+                          <div
+                            key={property.id}
+                            data-property-id={property.id}
+                            className={`group relative overflow-hidden rounded-lg border bg-white shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer h-28 ${
+                              selectedPropertyId === property.id 
+                                ? 'ring-2 ring-blue-500/20 border-blue-200 bg-blue-50/30' 
+                                : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                            onClick={() => handleViewDetails(property)}
+                            onMouseEnter={() => setHoveredPropertyId(property.id)}
+                            onMouseLeave={() => setHoveredPropertyId(null)}
+                          >
+                            {/* Horizontal Layout: Image Left, Details Right */}
+                            <div className="flex h-full">
+                              {/* Property Image - Left Side */}
+                              <div className="relative w-36 h-28 flex-shrink-0">
+                                {property.photo_url ? (
+                                  <img 
+                                    src={property.photo_url} 
+                                    alt={property.title || property.address_line || 'Property image'} 
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+                                    <Building2 className="h-8 w-8 text-gray-400" />
+                                  </div>
+                                )}
+                                
+                              </div>
+
+                              {/* Property Details - Right Side */}
+                              <div className="flex-1 p-3 min-w-0 flex flex-col justify-center">
+                                {/* Title (or address_line if title is empty) */}
+                                <h3 className="font-semibold text-sm text-gray-900 mb-0.5 whitespace-nowrap">
+                                  {property.title || property.address_line || 'Untitled Property'}
+                                </h3>
+                                
+                                {/* Address line - only show if title exists */}
+                                {property.title && (
+                                  <p className="text-xs text-gray-600 mb-0.5 whitespace-nowrap">
+                                    {property.address_line || ''}
+                                  </p>
+                                )}
+                                
+                                {/* City, State, Postal Code */}
+                                <p className="text-xs text-gray-600 mb-0.5 whitespace-nowrap">
+                                  {property.city}, {property.state} {property.postal_code ? property.postal_code.substring(0, 5) : ''}
+                                </p>
+                                
+                                {/* Size in square feet */}
+                                <p className="text-xs text-gray-600 mb-0.5 whitespace-nowrap">
+                                  {formatNumber(property.size_sqft || 0)} SF
+                                </p>
+                                
+                                {/* Base rent + expenses */}
+                                <p className="text-xs font-medium text-gray-900 whitespace-nowrap">
+                                  {formatCurrency(property.base_rent_psf || 0)}/SF
+                                  {property.expenses_psf && ` + ${formatCurrency(property.expenses_psf)}/SF`}
+                                </p>
+                              </div>
+                            </div>
+                            
+                            {/* Selection indicator */}
+                            {selectedPropertyId === property.id && (
+                              <div className="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
+                            )}
+                          </div>
+                          ))
+                        ) : (
+                          <div className="text-center py-8 text-gray-500">
+                            <Building2 className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+                            <p className="text-sm">No properties found for this phase</p>
+                            <button
+                              onClick={clearFilter}
+                              className="text-xs text-blue-600 hover:text-blue-700 mt-1"
+                            >
+                              Clear filter to see all properties
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Market Map - Flexible width */}
+                <div className="flex-1 min-h-0">
+                  <Card className="h-full flex flex-col">
+                    <CardHeader className="flex-shrink-0">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="flex items-center gap-2">
+                          <MapPin className="h-5 w-5" />
+                          Market Location Map
+                        </CardTitle>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setIsSatelliteView(!isSatelliteView)}
+                          className="flex items-center gap-2"
+                        >
+                          {isSatelliteView ? (
+                            <>
+                              <Map className="h-4 w-4" />
+                              Street
+                            </>
+                          ) : (
+                            <>
+                              <Satellite className="h-4 w-4" />
+                              Satellite
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="flex-1 p-0 min-h-0">
+                      <MarketMap 
+                        properties={filteredProperties} 
+                        marketName={market.name}
+                        className="h-full w-full rounded-b-lg"
+                        selectedPropertyId={selectedPropertyId || undefined}
+                        hoveredPropertyId={hoveredPropertyId || undefined}
+                        isSatelliteView={isSatelliteView}
+                        onPropertySelect={handlePropertySelect}
+                      />
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            ) : (
+              /* List View Layout */
+              <div className="flex-1 p-4 md:p-6 min-h-0">
                 <Card className="h-full flex flex-col">
                   <CardHeader className="flex-shrink-0">
                     <div className="flex items-center justify-between mb-3">
                       <CardTitle className="flex items-center gap-2">
                         <Building2 className="h-5 w-5" />
-                        Property Locations
+                        Properties List
                       </CardTitle>
                       {selectedPhase !== 'all' && (
                         <button
@@ -361,7 +542,7 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
                     <div className="flex items-center gap-2">
                       <Filter className="h-4 w-4 text-gray-400" />
                       <Select value={selectedPhase} onValueChange={setSelectedPhase}>
-                        <SelectTrigger className="w-full">
+                        <SelectTrigger className="w-full max-w-xs">
                           <SelectValue placeholder="Filter by phase" />
                         </SelectTrigger>
                         <SelectContent>
@@ -378,138 +559,19 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
                       </Select>
                     </div>
                   </CardHeader>
-                  <CardContent className="flex-1 overflow-y-auto min-h-0">
-                    <div ref={propertiesListRef} className="space-y-3">
-                      {filteredProperties.length > 0 ? (
-                        filteredProperties.map((property) => (
-                        <div
-                          key={property.id}
-                          data-property-id={property.id}
-                          className={`group relative overflow-hidden rounded-lg border bg-white shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer h-28 ${
-                            selectedPropertyId === property.id 
-                              ? 'ring-2 ring-blue-500/20 border-blue-200 bg-blue-50/30' 
-                              : 'border-gray-200 hover:border-gray-300'
-                          }`}
-                          onClick={() => handleViewDetails(property)}
-                          onMouseEnter={() => setHoveredPropertyId(property.id)}
-                          onMouseLeave={() => setHoveredPropertyId(null)}
-                        >
-                          {/* Horizontal Layout: Image Left, Details Right */}
-                          <div className="flex h-full">
-                            {/* Property Image - Left Side */}
-                            <div className="relative w-36 h-28 flex-shrink-0">
-                              {property.photo_url ? (
-                                <img 
-                                  src={property.photo_url} 
-                                  alt={property.title || property.address_line || 'Property image'} 
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <div className="w-full h-full bg-gray-100 flex items-center justify-center">
-                                  <Building2 className="h-8 w-8 text-gray-400" />
-                                </div>
-                              )}
-                              
-                            </div>
-
-                            {/* Property Details - Right Side */}
-                            <div className="flex-1 p-3 min-w-0 flex flex-col justify-center">
-                              {/* Title (or address_line if title is empty) */}
-                              <h3 className="font-semibold text-sm text-gray-900 mb-0.5 whitespace-nowrap">
-                                {property.title || property.address_line || 'Untitled Property'}
-                              </h3>
-                              
-                              {/* Address line - only show if title exists */}
-                              {property.title && (
-                                <p className="text-xs text-gray-600 mb-0.5 whitespace-nowrap">
-                                  {property.address_line || ''}
-                                </p>
-                              )}
-                              
-                              {/* City, State, Postal Code */}
-                              <p className="text-xs text-gray-600 mb-0.5 whitespace-nowrap">
-                                {property.city}, {property.state} {property.postal_code ? property.postal_code.substring(0, 5) : ''}
-                              </p>
-                              
-                              {/* Size in square feet */}
-                              <p className="text-xs text-gray-600 mb-0.5 whitespace-nowrap">
-                                {formatNumber(property.size_sqft || 0)} SF
-                              </p>
-                              
-                              {/* Base rent + expenses */}
-                              <p className="text-xs font-medium text-gray-900 whitespace-nowrap">
-                                {formatCurrency(property.base_rent_psf || 0)}/SF
-                                {property.expenses_psf && ` + ${formatCurrency(property.expenses_psf)}/SF`}
-                              </p>
-                            </div>
-                          </div>
-                          
-                          {/* Selection indicator */}
-                          {selectedPropertyId === property.id && (
-                            <div className="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
-                          )}
-                        </div>
-                        ))
-                      ) : (
-                        <div className="text-center py-8 text-gray-500">
-                          <Building2 className="h-8 w-8 mx-auto mb-2 text-gray-300" />
-                          <p className="text-sm">No properties found for this phase</p>
-                          <button
-                            onClick={clearFilter}
-                            className="text-xs text-blue-600 hover:text-blue-700 mt-1"
-                          >
-                            Clear filter to see all properties
-                          </button>
-                        </div>
-                      )}
+                  <CardContent className="flex-1 min-h-0 overflow-hidden">
+                    <div className="h-full overflow-y-auto">
+                      <DataTable 
+                        columns={createPropertyColumns(handleViewDetails)} 
+                        data={filteredProperties} 
+                        searchKey="title"
+                        searchPlaceholder="Search properties..."
+                      />
                     </div>
                   </CardContent>
                 </Card>
               </div>
-
-              {/* Market Map - Flexible width */}
-              <div className="flex-1 min-h-0">
-                <Card className="h-full flex flex-col">
-                  <CardHeader className="flex-shrink-0">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="flex items-center gap-2">
-                        <MapPin className="h-5 w-5" />
-                        Market Location Map
-                      </CardTitle>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setIsSatelliteView(!isSatelliteView)}
-                        className="flex items-center gap-2"
-                      >
-                        {isSatelliteView ? (
-                          <>
-                            <Map className="h-4 w-4" />
-                            Street
-                          </>
-                        ) : (
-                          <>
-                            <Satellite className="h-4 w-4" />
-                            Satellite
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="flex-1 p-0 min-h-0">
-                    <MarketMap 
-                      properties={filteredProperties} 
-                      marketName={market.name}
-                      className="h-full w-full rounded-b-lg"
-                      selectedPropertyId={selectedPropertyId || undefined}
-                      hoveredPropertyId={hoveredPropertyId || undefined}
-                      isSatelliteView={isSatelliteView}
-                      onPropertySelect={handlePropertySelect}
-                    />
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
+            )
           ) : (
             <div className="flex-1 flex items-center justify-center p-4 md:p-6">
               <Card>

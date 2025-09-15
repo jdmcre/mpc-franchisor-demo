@@ -1,35 +1,10 @@
 "use client"
 
 import { ColumnDef } from "@tanstack/react-table"
-import { ArrowUpDown, Building2, User } from "lucide-react"
+import { ArrowUpDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Market } from "@/lib/supabase"
-
-// Component for the actions cell
-function ActionsCell({ marketId, onViewUpdates }: { marketId: string, onViewUpdates: (marketId: string) => void }) {
-  return (
-    <Button
-      variant="ghost"
-      size="sm"
-      onClick={(e) => {
-        e.stopPropagation()
-        onViewUpdates(marketId)
-      }}
-      className="flex items-center gap-2"
-    >
-      View Updates
-    </Button>
-  )
-}
-
-// Component for the market name cell
-function MarketNameCell({ marketName }: { marketName: string }) {
-  return (
-    <div className="font-medium">
-      {marketName}
-    </div>
-  )
-}
+import { Badge } from "@/components/ui/badge"
+import { Property, Market } from "@/lib/supabase"
 
 interface MarketWithDetails extends Market {
   propertyCount: number
@@ -44,25 +19,218 @@ interface MarketWithDetails extends Market {
   }>
 }
 
-// Function to normalize phase display text
-const normalizePhaseText = (phase: string): string => {
-  if (!phase) return phase
-  
-  // Handle special case for LOI
-  if (phase.toLowerCase() === 'loi') {
-    return 'LOI'
-  }
-  
-  // Replace underscores with spaces and capitalize each word
-  return phase
-    .split('_')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(' ')
-}
+export const createPropertyColumns = (onViewDetails: (property: Property) => void): ColumnDef<Property>[] => [
+  {
+    accessorKey: "title",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Property
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      )
+    },
+    cell: ({ row }) => {
+      const title = row.getValue("title") as string
+      const address = row.original.address_line
+      const city = row.original.city
+      const state = row.original.state
+      const postalCode = row.original.postal_code
+      const photoUrl = row.original.photo_url
+      
+      // Use same logic as map view: if title is empty, use address_line
+      const displayTitle = title || address || 'Untitled Property'
+      
+      // Format postal code to show only first 5 digits
+      const formattedPostalCode = postalCode ? postalCode.substring(0, 5) : ''
+      
+      return (
+        <div 
+          className="group flex items-center gap-3 min-w-[280px] cursor-pointer hover:bg-muted/50 p-2 -m-2 rounded-md transition-colors"
+          onClick={() => onViewDetails(row.original)}
+        >
+          {/* Property Image - Increased by 100% (from 48px to 96px) */}
+          <div className="relative w-24 h-24 flex-shrink-0 rounded-md overflow-hidden">
+            {photoUrl ? (
+              <img 
+                src={photoUrl} 
+                alt={displayTitle} 
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400">
+                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                  <polyline points="9,22 9,12 15,12 15,22"/>
+                </svg>
+              </div>
+            )}
+          </div>
+          
+          {/* Property Details */}
+          <div className="min-w-0 flex-1">
+            <div className="font-medium truncate" title={displayTitle}>
+              {displayTitle}
+            </div>
+            {/* Only show address_line if title exists (same logic as map view) */}
+            {title && address && (
+              <div className="text-sm text-muted-foreground truncate" title={address}>
+                {address}
+              </div>
+            )}
+            <div className="text-sm text-muted-foreground">
+              {[city, state, formattedPostalCode].filter(Boolean).join(', ')}
+            </div>
+            <div className="text-xs text-muted-foreground/70 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              View Details
+            </div>
+          </div>
+        </div>
+      )
+    },
+  },
+  {
+    accessorKey: "size_sqft",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="w-full justify-center"
+        >
+          Size (sq ft)
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      )
+    },
+    cell: ({ row }) => {
+      const size = row.getValue("size_sqft") as number
+      if (!size) return <div className="text-sm text-muted-foreground text-center">N/A</div>
+      
+      return (
+        <div className="text-sm text-center w-20">
+          {size.toLocaleString()}
+        </div>
+      )
+    },
+    size: 100,
+  },
+  {
+    accessorKey: "base_rent_psf",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="w-full justify-start"
+        >
+          Base Rent ($/sq ft)
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      )
+    },
+    cell: ({ row }) => {
+      const rent = row.getValue("base_rent_psf") as number
+      const expenses = row.original.expenses_psf
+      
+      if (!rent) return <div className="text-sm text-muted-foreground">N/A</div>
+      
+      return (
+        <div className="text-sm w-32">
+          <div>${rent.toFixed(2)}/SF</div>
+          {expenses && (
+            <div className="text-muted-foreground">+ ${expenses.toFixed(2)} expenses</div>
+          )}
+        </div>
+      )
+    },
+    size: 150,
+  },
+  {
+    accessorKey: "phase",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="w-full justify-start"
+        >
+          Phase
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      )
+    },
+    cell: ({ row }) => {
+      const phase = row.getValue("phase") as string
+      
+      const getPhaseLabel = (phase: string) => {
+        switch (phase) {
+          case 'site_selection': return 'Site Selection'
+          case 'under_contract': return 'Under Contract'
+          case 'due_diligence': return 'Due Diligence'
+          case 'closing': return 'Closing'
+          case 'closed': return 'Closed'
+          case 'owned': return 'Owned'
+          case 'leased': return 'Leased'
+          case 'sold': return 'Sold'
+          default: return phase
+        }
+      }
 
-export const createColumns = (
-  onViewUpdates: (marketId: string) => void
-): ColumnDef<MarketWithDetails>[] => [
+      const getPhaseVariant = (phase: string) => {
+        switch (phase) {
+          case 'site_selection': return 'outline'
+          case 'under_contract': return 'secondary'
+          case 'due_diligence': return 'default'
+          case 'closing': return 'default'
+          case 'closed': return 'secondary'
+          case 'owned': return 'default'
+          case 'leased': return 'outline'
+          case 'sold': return 'secondary'
+          default: return 'default'
+        }
+      }
+      
+      return (
+        <div className="w-32">
+          <Badge 
+            variant={getPhaseVariant(phase)}
+            className="text-xs font-medium"
+          >
+            {getPhaseLabel(phase)}
+          </Badge>
+        </div>
+      )
+    },
+    size: 150,
+  },
+  {
+    accessorKey: "notes",
+    header: "Notes",
+    cell: ({ row }) => {
+      const notes = row.getValue("notes") as string
+      if (!notes) return <div className="text-sm text-muted-foreground">No notes</div>
+      
+      // Truncate notes if they're too long, but allow line breaks
+      const maxLength = 100
+      const truncatedNotes = notes.length > maxLength ? notes.substring(0, maxLength) + '...' : notes
+      
+      return (
+        <div className="text-sm min-w-0 flex-1" title={notes}>
+          <div className="whitespace-pre-wrap break-words">
+            {truncatedNotes}
+          </div>
+        </div>
+      )
+    },
+    size: 200,
+  },
+]
+
+export const createColumns = (handleViewUpdates: (marketId: string) => void): ColumnDef<MarketWithDetails>[] => [
   {
     accessorKey: "name",
     header: ({ column }) => {
@@ -71,50 +239,15 @@ export const createColumns = (
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
-          Name
+          Market Name
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       )
     },
     cell: ({ row }) => {
-      const marketName = row.getValue("name") as string
-      
       return (
-        <MarketNameCell
-          marketName={marketName}
-        />
-      )
-    },
-  },
-  {
-    accessorKey: "franchisees",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          <User className="mr-2 h-4 w-4" />
-          Franchisee
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      )
-    },
-    cell: ({ row }) => {
-      const franchisees = row.original.franchisees
-      if (franchisees.length === 0) {
-        return (
-          <div className="text-sm text-muted-foreground">
-            No franchisee
-          </div>
-        )
-      }
-      
-      // Show the first franchisee (assuming one per market)
-      const franchisee = franchisees[0]
-      return (
-        <div className="text-sm font-medium">
-          {franchisee.full_name || 'Unnamed Franchisee'}
+        <div className="font-medium max-w-[200px] truncate" title={row.getValue("name")}>
+          {row.getValue("name")}
         </div>
       )
     },
@@ -127,68 +260,60 @@ export const createColumns = (
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
-          <Building2 className="mr-2 h-4 w-4" />
           Properties
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       )
     },
     cell: ({ row }) => {
+      const count = row.getValue("propertyCount") as number
       return (
-        <div className="text-sm font-medium">
-          {row.original.propertyCount}
+        <div className="text-sm">
+          {count}
         </div>
       )
     },
   },
   {
     accessorKey: "phases",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Phase
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      )
-    },
+    header: "Phases",
     cell: ({ row }) => {
-      const phases = row.original.phases
-      if (phases.length === 0) {
-        return (
-          <div className="text-sm text-muted-foreground">
-            No properties
-          </div>
-        )
+      const phases = row.getValue("phases") as string[]
+      if (!phases || phases.length === 0) {
+        return <div className="text-sm text-muted-foreground">No phases</div>
       }
       
-      // Display only the single furthest along phase
-      const phase = phases[0]
       return (
-        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-          {normalizePhaseText(phase)}
-        </span>
+        <div className="flex flex-wrap gap-1">
+          {phases.slice(0, 2).map((phase, index) => (
+            <Badge key={index} variant="outline" className="text-xs">
+              {phase}
+            </Badge>
+          ))}
+          {phases.length > 2 && (
+            <Badge variant="outline" className="text-xs">
+              +{phases.length - 2} more
+            </Badge>
+          )}
+        </div>
       )
     },
   },
-
   {
-    accessorKey: "updated_at",
+    accessorKey: "created_at",
     header: ({ column }) => {
       return (
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
-          Updated
+          Created
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       )
     },
     cell: ({ row }) => {
-      const date = new Date(row.getValue("updated_at"))
+      const date = new Date(row.getValue("created_at"))
       return (
         <div className="text-sm">
           {date.toLocaleDateString()}
@@ -200,8 +325,21 @@ export const createColumns = (
     id: "actions",
     header: "Actions",
     cell: ({ row }) => {
-      return <ActionsCell marketId={row.original.id} onViewUpdates={onViewUpdates} />
+      const market = row.original
+      return (
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation()
+              handleViewUpdates(market.id)
+            }}
+          >
+            View Updates
+          </Button>
+        </div>
+      )
     },
   },
-
 ]

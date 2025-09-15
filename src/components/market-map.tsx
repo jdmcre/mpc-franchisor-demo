@@ -119,7 +119,7 @@ export function MarketMap({ properties, marketName, className = '', selectedProp
 
       map.current = new mapboxgl.Map({
         container: mapContainer.current,
-        style: isSatelliteView ? 'mapbox://styles/mapbox/satellite-v9' : 'mapbox://styles/mapbox/streets-v12',
+        style: isSatelliteView ? 'mapbox://styles/mapbox/satellite-streets-v12' : 'mapbox://styles/mapbox/streets-v12',
         center: [centerLng, centerLat],
         zoom: zoom,
         attributionControl: false
@@ -335,7 +335,7 @@ export function MarketMap({ properties, marketName, className = '', selectedProp
   useEffect(() => {
     if (!map.current || !mapLoaded || !mapContainer.current) return
 
-    const newStyle = isSatelliteView ? 'mapbox://styles/mapbox/satellite-v9' : 'mapbox://styles/mapbox/streets-v12'
+    const newStyle = isSatelliteView ? 'mapbox://styles/mapbox/satellite-streets-v12' : 'mapbox://styles/mapbox/streets-v12'
     
     try {
       // Check if map is still valid before changing style
