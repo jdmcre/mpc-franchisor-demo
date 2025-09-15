@@ -151,7 +151,7 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
             setProperties(updatedProperties)
             
             // If a property was deleted and it was selected, clear selection
-            if (payload.eventType === 'DELETE' && selectedPropertyId === (payload as any).old_record?.id) {
+            if (payload.eventType === 'DELETE' && selectedPropertyId === (payload as { old_record?: { id: string } }).old_record?.id) {
               setSelectedPropertyId(null)
             }
           } catch (error) {
