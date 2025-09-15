@@ -19,7 +19,7 @@ import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/app-sidebar'
 import { MarketMap } from '@/components/market-map'
 import { supabase, Property } from '@/lib/supabase'
-import { MapPin, Building2, DollarSign, ThumbsUp, ThumbsDown, Filter, Calendar, FileText, Download, X, File, Layout } from 'lucide-react'
+import { MapPin, Building2, DollarSign, ThumbsUp, ThumbsDown, Filter, Calendar, FileText, Download, X, File, Layout, Satellite, Map } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
@@ -73,6 +73,8 @@ async function getMarketProperties(marketId: string): Promise<Property[]> {
 
 export default function MarketPage({ params }: { params: Promise<{ id: string }> }) {
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null)
+  const [hoveredPropertyId, setHoveredPropertyId] = useState<string | null>(null)
+  const [isSatelliteView, setIsSatelliteView] = useState(false)
   const [market, setMarket] = useState<Market | null>(null)
   const [properties, setProperties] = useState<Property[]>([])
   const [loading, setLoading] = useState(true)
@@ -205,8 +207,13 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
   }
 
   const handlePropertySelect = (propertyId: string) => {
-    setSelectedPropertyId(propertyId)
-    scrollToProperty(propertyId)
+    if (propertyId === '') {
+      // Clear selection when clicking on empty map area
+      setSelectedPropertyId(null)
+    } else {
+      setSelectedPropertyId(propertyId)
+      scrollToProperty(propertyId)
+    }
   }
 
   const handleViewDetails = (property: Property) => {
@@ -280,9 +287,9 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
 
           {/* Map and Properties Layout - Fixed height, no scrolling */}
           {properties.length > 0 ? (
-            <div className="flex-1 grid grid-cols-3 gap-6 p-4 md:p-6 min-h-0">
-              {/* Properties List - 1/3 width */}
-              <div className="col-span-1 min-h-0">
+            <div className="flex-1 flex gap-6 p-4 md:p-6 min-h-0">
+              {/* Properties List - Dynamic width with minimum */}
+              <div className="w-auto min-w-80 flex-shrink-0 min-h-0">
                 <Card className="h-full flex flex-col">
                   <CardHeader className="flex-shrink-0">
                     <div className="flex items-center justify-between mb-3">
@@ -327,83 +334,62 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
                         <div
                           key={property.id}
                           data-property-id={property.id}
-                          className={`group relative overflow-hidden rounded-xl border bg-white shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer ${
+                          className={`group relative overflow-hidden rounded-lg border bg-white shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer h-28 ${
                             selectedPropertyId === property.id 
                               ? 'ring-2 ring-blue-500/20 border-blue-200 bg-blue-50/30' 
                               : 'border-gray-200 hover:border-gray-300'
                           }`}
                           onClick={() => handleViewDetails(property)}
+                          onMouseEnter={() => setHoveredPropertyId(property.id)}
+                          onMouseLeave={() => setHoveredPropertyId(null)}
                         >
-                          {/* Content */}
-                          <div className="p-4 sm:p-5">
-                            {/* Header with title and badge */}
-                            <div className="flex items-start justify-between mb-3 gap-2">
-                              <div className="flex-1 min-w-0">
-                                <h3 className="font-semibold text-base sm:text-lg text-gray-900 line-clamp-2 leading-tight">
-                                  <a 
-                                    href={`/properties/${property.id}`}
-                                    className="text-blue-600 hover:text-blue-700 transition-colors"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    {property.title || property.address_line || 'Untitled Property'}
-                                  </a>
-                                </h3>
-                              </div>
-                              <Badge 
-                                variant={getPhaseVariant(property.phase)}
-                                className="ml-2 shrink-0 text-xs font-medium whitespace-nowrap"
-                              >
-                                {getPhaseLabel(property.phase)}
-                              </Badge>
-                            </div>
-                          
-                            {/* Property details */}
-                            <div className="space-y-2 mb-4">
-                              <div className="flex items-start gap-2 text-sm text-gray-600">
-                                <MapPin className="h-4 w-4 text-gray-400 mt-0.5 shrink-0" />
-                                <span className="line-clamp-2 leading-relaxed">
-                                  {property.address_line && `${property.address_line}, `}
-                                  {property.city}, {property.state} {property.postal_code}
-                                </span>
-                              </div>
+                          {/* Horizontal Layout: Image Left, Details Right */}
+                          <div className="flex h-full">
+                            {/* Property Image - Left Side */}
+                            <div className="relative w-36 h-28 flex-shrink-0">
+                              {property.photo_url ? (
+                                <img 
+                                  src={property.photo_url} 
+                                  alt={property.title || property.address_line || 'Property image'} 
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+                                  <Building2 className="h-8 w-8 text-gray-400" />
+                                </div>
+                              )}
                               
-                              <div className="flex items-center gap-2 text-sm text-gray-600">
-                                <Building2 className="h-4 w-4 text-gray-400 shrink-0" />
-                                <span className="truncate">{formatNumber(property.size_sqft || 0)} sq ft</span>
-                              </div>
-                              
-                              <div className="flex items-start gap-2 text-sm text-gray-600">
-                                <DollarSign className="h-4 w-4 text-gray-400 mt-0.5 shrink-0" />
-                                <span className="line-clamp-2 leading-relaxed">
-                                  {formatCurrency(property.base_rent_psf || 0)}/sq ft
-                                  {property.expenses_psf && ` + ${formatCurrency(property.expenses_psf)} expenses`}
-                                </span>
-                              </div>
                             </div>
 
-                            {/* Ranking section */}
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-3 border-t border-gray-100">
-                              <div className="flex items-center gap-1">
-                                <span className="text-xs text-gray-500 font-medium">Ranking:</span>
-                                <div className="flex items-center gap-1">
-                                  <button 
-                                    className="p-1 rounded-md hover:bg-green-50 text-gray-400 hover:text-green-600 transition-colors"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <ThumbsUp className="h-4 w-4" />
-                                  </button>
-                                  <span className="text-xs text-gray-500 mx-1">0</span>
-                                  <button 
-                                    className="p-1 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <ThumbsDown className="h-4 w-4" />
-                                  </button>
-                                </div>
-                              </div>
-                              <div className="text-xs text-gray-400 text-right sm:text-left">
-                                Click to view details
-                              </div>
+                            {/* Property Details - Right Side */}
+                            <div className="flex-1 p-3 min-w-0 flex flex-col justify-center">
+                              {/* Title (or address_line if title is empty) */}
+                              <h3 className="font-semibold text-sm text-gray-900 mb-0.5 whitespace-nowrap">
+                                {property.title || property.address_line || 'Untitled Property'}
+                              </h3>
+                              
+                              {/* Address line - only show if title exists */}
+                              {property.title && (
+                                <p className="text-xs text-gray-600 mb-0.5 whitespace-nowrap">
+                                  {property.address_line || ''}
+                                </p>
+                              )}
+                              
+                              {/* City, State, Postal Code */}
+                              <p className="text-xs text-gray-600 mb-0.5 whitespace-nowrap">
+                                {property.city}, {property.state} {property.postal_code ? property.postal_code.substring(0, 5) : ''}
+                              </p>
+                              
+                              {/* Size in square feet */}
+                              <p className="text-xs text-gray-600 mb-0.5 whitespace-nowrap">
+                                {formatNumber(property.size_sqft || 0)} SF
+                              </p>
+                              
+                              {/* Base rent + expenses */}
+                              <p className="text-xs font-medium text-gray-900 whitespace-nowrap">
+                                {formatCurrency(property.base_rent_psf || 0)}/SF
+                                {property.expenses_psf && ` + ${formatCurrency(property.expenses_psf)}/SF`}
+                              </p>
                             </div>
                           </div>
                           
@@ -430,14 +416,34 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
                 </Card>
               </div>
 
-              {/* Market Map - 2/3 width */}
-              <div className="col-span-2 min-h-0">
+              {/* Market Map - Flexible width */}
+              <div className="flex-1 min-h-0">
                 <Card className="h-full flex flex-col">
                   <CardHeader className="flex-shrink-0">
-                    <CardTitle className="flex items-center gap-2">
-                      <MapPin className="h-5 w-5" />
-                      Market Location Map
-                    </CardTitle>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="flex items-center gap-2">
+                        <MapPin className="h-5 w-5" />
+                        Market Location Map
+                      </CardTitle>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsSatelliteView(!isSatelliteView)}
+                        className="flex items-center gap-2"
+                      >
+                        {isSatelliteView ? (
+                          <>
+                            <Map className="h-4 w-4" />
+                            Street
+                          </>
+                        ) : (
+                          <>
+                            <Satellite className="h-4 w-4" />
+                            Satellite
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </CardHeader>
                   <CardContent className="flex-1 p-0 min-h-0">
                     <MarketMap 
@@ -445,6 +451,8 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
                       marketName={market.name}
                       className="h-full w-full rounded-b-lg"
                       selectedPropertyId={selectedPropertyId || undefined}
+                      hoveredPropertyId={hoveredPropertyId || undefined}
+                      isSatelliteView={isSatelliteView}
                       onPropertySelect={handlePropertySelect}
                     />
                   </CardContent>

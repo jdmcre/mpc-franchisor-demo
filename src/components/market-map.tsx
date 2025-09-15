@@ -13,10 +13,12 @@ interface MarketMapProps {
   marketName: string
   className?: string
   selectedPropertyId?: string
+  hoveredPropertyId?: string
+  isSatelliteView?: boolean
   onPropertySelect?: (propertyId: string) => void
 }
 
-export function MarketMap({ properties, marketName, className = '', selectedPropertyId, onPropertySelect }: MarketMapProps) {
+export function MarketMap({ properties, marketName, className = '', selectedPropertyId, hoveredPropertyId, isSatelliteView = false, onPropertySelect }: MarketMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null)
   const map = useRef<mapboxgl.Map | null>(null)
   const resizeObserver = useRef<ResizeObserver | null>(null)
@@ -117,26 +119,43 @@ export function MarketMap({ properties, marketName, className = '', selectedProp
 
       map.current = new mapboxgl.Map({
         container: mapContainer.current,
-        style: 'mapbox://styles/mapbox/streets-v12',
+        style: isSatelliteView ? 'mapbox://styles/mapbox/satellite-v9' : 'mapbox://styles/mapbox/streets-v12',
         center: [centerLng, centerLat],
         zoom: zoom,
         attributionControl: false
       })
 
       map.current.on('load', () => {
-        if (signal.aborted) return
+        // Check if component is still mounted and signal not aborted
+        if (signal.aborted || !mapContainer.current) return
         setMapLoaded(true)
         // Resize the map after it loads to ensure proper dimensions
-        if (map.current && !signal.aborted) {
-          map.current.resize()
+        if (map.current && !signal.aborted && mapContainer.current) {
+          try {
+            map.current.resize()
+          } catch (resizeError) {
+            console.warn('Error resizing map:', resizeError)
+          }
+        }
+      })
+
+      // Add click handler to map to clear selection when clicking on empty areas
+      map.current.on('click', (e) => {
+        // Only clear selection if clicking on the map itself (not on markers)
+        if (onPropertySelect && !signal.aborted) {
+          onPropertySelect('')
         }
       })
 
       // Set up ResizeObserver to handle container size changes (e.g., sidebar collapse/expand)
       if (mapContainer.current && !signal.aborted) {
         resizeObserver.current = new ResizeObserver(() => {
-          if (map.current && !signal.aborted) {
-            map.current.resize()
+          if (map.current && !signal.aborted && mapContainer.current) {
+            try {
+              map.current.resize()
+            } catch (resizeError) {
+              console.warn('Error resizing map:', resizeError)
+            }
           }
         })
         resizeObserver.current.observe(mapContainer.current)
@@ -150,13 +169,22 @@ export function MarketMap({ properties, marketName, className = '', selectedProp
     return () => {
       // Abort any ongoing operations
       if (abortController.current) {
-        abortController.current.abort()
+        try {
+          abortController.current.abort()
+        } catch (error) {
+          // Ignore abort errors - controller might already be aborted
+          console.warn('AbortController cleanup warning:', error)
+        }
       }
 
       // Clean up markers
       markersRef.current.forEach(marker => {
         if (marker && typeof marker.remove === 'function') {
-          marker.remove()
+          try {
+            marker.remove()
+          } catch (error) {
+            console.warn('Marker cleanup warning:', error)
+          }
         }
       })
       markersRef.current = []
@@ -233,7 +261,10 @@ export function MarketMap({ properties, marketName, className = '', selectedProp
         el.style.width = '20px'
         el.style.height = '20px'
         el.style.borderRadius = '50%'
-        el.style.backgroundColor = selectedPropertyId === property.id ? '#ef4444' : '#3b82f6' // Red if selected, blue otherwise
+        // Determine marker color: red if selected or hovered, blue otherwise
+        const isSelected = selectedPropertyId === property.id
+        const isHovered = hoveredPropertyId === property.id
+        el.style.backgroundColor = (isSelected || isHovered) ? '#ef4444' : '#3b82f6'
         el.style.border = '2px solid white'
         el.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)'
         el.style.cursor = 'pointer'
@@ -265,7 +296,8 @@ export function MarketMap({ properties, marketName, className = '', selectedProp
           markersRef.current.push(marker)
 
           // Add click handler to marker
-          el.addEventListener('click', () => {
+          el.addEventListener('click', (e) => {
+            e.stopPropagation() // Prevent map click event from firing
             if (onPropertySelect) {
               onPropertySelect(property.id)
             }
@@ -297,7 +329,23 @@ export function MarketMap({ properties, marketName, className = '', selectedProp
     } catch (error) {
       console.warn('Error adding markers to map:', error)
     }
-  }, [properties, mapLoaded, selectedPropertyId])
+  }, [properties, mapLoaded, selectedPropertyId, hoveredPropertyId])
+
+  // Handle style changes when satellite view toggle changes
+  useEffect(() => {
+    if (!map.current || !mapLoaded || !mapContainer.current) return
+
+    const newStyle = isSatelliteView ? 'mapbox://styles/mapbox/satellite-v9' : 'mapbox://styles/mapbox/streets-v12'
+    
+    try {
+      // Check if map is still valid before changing style
+      if (map.current && !map.current._removed && mapContainer.current) {
+        map.current.setStyle(newStyle)
+      }
+    } catch (error) {
+      console.warn('Error changing map style:', error)
+    }
+  }, [isSatelliteView, mapLoaded])
 
 
 
