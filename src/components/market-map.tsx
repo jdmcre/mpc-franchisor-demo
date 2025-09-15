@@ -366,7 +366,7 @@ export function MarketMap({ properties, marketName, className = '', selectedProp
         // Add the GeoJSON source
         map.current.addSource(sourceId, {
           type: 'geojson',
-          data: territoryPolygon as mapboxgl.GeoJSONSourceRaw['data']
+          data: territoryPolygon as mapboxgl.GeoJSONSource['data']
         })
 
         // Add the fill layer
