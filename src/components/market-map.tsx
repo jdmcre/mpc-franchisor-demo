@@ -366,7 +366,8 @@ export function MarketMap({ properties, marketName, className = '', selectedProp
         // Add the GeoJSON source
         map.current.addSource(sourceId, {
           type: 'geojson',
-          data: territoryPolygon as mapboxgl.GeoJSONSource['data']
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          data: territoryPolygon as any
         })
 
         // Add the fill layer
