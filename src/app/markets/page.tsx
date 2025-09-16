@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { AppSidebar } from '@/components/app-sidebar'
 import {
@@ -56,6 +57,7 @@ export default function MarketsPage() {
   const [editingUpdate, setEditingUpdate] = useState<MarketUpdate | null>(null)
   const [phaseFilter, setPhaseFilter] = useState<string>('all')
   const [marketDetailsModalOpen, setMarketDetailsModalOpen] = useState(false)
+  const marketDetailsTriggerRef = useRef<HTMLButtonElement>(null)
 
   const handleViewUpdates = (marketId: string) => {
     const market = markets.find(m => m.id === marketId)
@@ -189,6 +191,46 @@ export default function MarketsPage() {
 
     fetchData()
   }, [])
+
+  // Close Market Details modal when Updates modal closes
+  useEffect(() => {
+    if (!updatesModalOpen && marketDetailsModalOpen) {
+      setMarketDetailsModalOpen(false)
+    }
+  }, [updatesModalOpen, marketDetailsModalOpen])
+
+  // Focus management and keyboard handling for Market Details modal
+  useEffect(() => {
+    if (marketDetailsModalOpen) {
+      // Focus trap and keyboard handling
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          setMarketDetailsModalOpen(false)
+        }
+      }
+
+
+      // Add event listener
+      document.addEventListener('keydown', handleKeyDown)
+
+      // Focus the modal after a brief delay to ensure it's rendered
+      setTimeout(() => {
+        const modal = document.querySelector('[role="dialog"][aria-modal="true"]') as HTMLElement
+        if (modal) {
+          modal.focus()
+        }
+      }, 100)
+
+      // Cleanup
+      return () => {
+        document.removeEventListener('keydown', handleKeyDown)
+        // Restore focus to the trigger button when modal closes
+        if (marketDetailsTriggerRef.current) {
+          marketDetailsTriggerRef.current.focus()
+        }
+      }
+    }
+  }, [marketDetailsModalOpen])
 
 
 
@@ -374,9 +416,16 @@ export default function MarketsPage() {
           </Card>
         </div>
 
-        {/* Updates Modal */}
-        <Sheet open={updatesModalOpen} onOpenChange={setUpdatesModalOpen}>
-          <SheetContent side="right" className="w-[400px] sm:w-[540px] z-[60]">
+        {/* Market Updates Modal - Base Sheet (~20% width) */}
+        <Sheet
+          modal={false}
+          open={updatesModalOpen}
+          onOpenChange={(next) => {
+            if (!next && marketDetailsModalOpen) return; // don't close base while details is open
+            setUpdatesModalOpen(next);
+          }}
+        >
+          <SheetContent side="right" className="w-[20vw] min-w-[300px] z-[60]">
             <SheetHeader>
               <SheetTitle className="flex items-center gap-2">
                 <MessageSquare className="h-5 w-5" />
@@ -387,6 +436,7 @@ export default function MarketsPage() {
               </SheetDescription>
               <div className="pt-2">
                 <Button
+                  ref={marketDetailsTriggerRef}
                   variant="link"
                   onClick={handleViewMarketDetails}
                   className="p-0 h-auto text-blue-600 hover:text-blue-800"
@@ -395,7 +445,8 @@ export default function MarketsPage() {
                 </Button>
               </div>
             </SheetHeader>
-            
+
+            {/* Independent scroll area for Market Updates */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               {selectedMarketForUpdates && (() => {
                 const filteredUpdates = marketUpdates.filter(msg => msg.market_id === selectedMarketForUpdates.id)
@@ -408,7 +459,7 @@ export default function MarketsPage() {
                 ) : (
                   filteredUpdates.map((message) => {
                     const isOrgAdmins = message.author === 'Org Admins'
-                    
+
                     return (
                       <div key={message.id} className="group transition-all duration-500">
                         <div className="flex items-start gap-3">
@@ -437,54 +488,67 @@ export default function MarketsPage() {
                 )
               })()}
             </div>
-
-            {/* Add Update Form - Hidden for table view */}
-            {/* {selectedMarketForUpdates && (
-              <div className="border-t p-4">
-                <MarketUpdateForm
-                  marketId={selectedMarketForUpdates.id}
-                  marketName={selectedMarketForUpdates.name}
-                  onUpdate={handleUpdateMarketUpdates}
-                  editingUpdate={editingUpdate}
-                  onCancelEdit={handleCancelEdit}
-                  isCompact={true}
-                />
-              </div>
-            )} */}
           </SheetContent>
         </Sheet>
 
-        {/* Market Details Modal */}
-        <Sheet open={marketDetailsModalOpen} onOpenChange={setMarketDetailsModalOpen}>
-          <SheetContent 
-            side="right" 
-            className="w-[95vw] max-w-none z-[70] transition-all duration-300"
-            style={{
-              right: updatesModalOpen ? '400px' : '0px'
-            }}
-          >
-            <SheetHeader>
-              <SheetTitle className="flex items-center gap-2">
-                <Building2 className="h-5 w-5" />
-                Market Details
-              </SheetTitle>
-              <SheetDescription>
+        {/* Market Details Modal - Portal-based to avoid stacking context issues */}
+        {marketDetailsModalOpen && typeof window !== 'undefined' && createPortal(
+          <>
+            {/* Invisible backdrop for clicks */}
+            <div
+              className="fixed inset-0 z-[100]"
+              onClick={() => setMarketDetailsModalOpen(false)}
+            />
+            {/* Modal content */}
+            <div
+              className="fixed top-0 bottom-0 bg-white border-r shadow-lg transition-all duration-300 flex flex-col outline-none z-[101]"
+              style={{
+                width: '50vw',
+                right: '20vw', // Position from left edge of Market Updates
+                left: 'auto'
+              }}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="market-details-title"
+              tabIndex={-1}
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex h-16 shrink-0 items-center gap-4 border-b px-6">
+                <div className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5" />
+                  <h2 id="market-details-title" className="text-lg font-semibold">Market Details</h2>
+                </div>
+                <button
+                  onClick={() => setMarketDetailsModalOpen(false)}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  className="ml-auto p-2 hover:bg-gray-100 rounded-md"
+                  aria-label="Close Market Details"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="px-6 py-2 text-sm text-muted-foreground border-b">
                 {selectedMarketForUpdates?.name || 'Market'} - Detailed information and location
-              </SheetDescription>
-            </SheetHeader>
-            
-            <div className="flex-1 overflow-y-auto p-4">
-              {/* Map Placeholder */}
-              <div className="w-full h-full bg-gray-100 border border-gray-200 rounded-lg flex items-center justify-center">
-                <div className="text-center text-gray-500">
-                  <MapPin className="h-16 w-16 mx-auto mb-4" />
-                  <p className="text-lg font-medium">Map placeholder for {selectedMarketForUpdates?.name}</p>
-                  <p className="text-sm text-gray-400">Interactive map would be displayed here</p>
+              </div>
+
+              {/* Independent scroll area for Market Details */}
+              <div className="flex-1 overflow-y-auto p-6">
+                {/* Map Placeholder */}
+                <div className="w-full h-full bg-gray-100 border border-gray-200 rounded-lg flex items-center justify-center min-h-[500px]">
+                  <div className="text-center text-gray-500">
+                    <MapPin className="h-16 w-16 mx-auto mb-4" />
+                    <p className="text-lg font-medium">Map placeholder for {selectedMarketForUpdates?.name}</p>
+                    <p className="text-sm text-gray-400">Interactive map would be displayed here</p>
+                  </div>
                 </div>
               </div>
             </div>
-          </SheetContent>
-        </Sheet>
+          </>,
+          document.body
+        )}
+
 
       </SidebarInset>
     </SidebarProvider>
