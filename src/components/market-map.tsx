@@ -178,7 +178,7 @@ export function MarketMap({
 
           const marker = new mapboxgl.Marker(markerEl)
             .setLngLat(lngLat)
-            .addTo(map.current)
+            .addTo(map.current!)
           
           // Store marker reference for cleanup
           markers.current.push(marker)
@@ -187,14 +187,14 @@ export function MarketMap({
 
       // Fit map to bounds
       if (validProperties.length > 1) {
-        map.current.fitBounds(bounds, { 
+        map.current!.fitBounds(bounds, { 
           padding: 20,
           maxZoom: 12
         })
       } else if (validProperties.length === 1) {
         const property = validProperties[0]
-        map.current.setCenter([property.lng!, property.lat!])
-        map.current.setZoom(10)
+        map.current!.setCenter([property.lng!, property.lat!])
+        map.current!.setZoom(10)
       }
     } catch (error) {
       console.error('Error updating map markers:', error)
@@ -230,7 +230,7 @@ export function MarketMap({
 
     try {
       const newStyle = isSatelliteView ? 'mapbox://styles/mapbox/satellite-v9' : 'mapbox://styles/mapbox/streets-v12'
-      map.current.setStyle(newStyle)
+      map.current!.setStyle(newStyle)
     } catch (error) {
       console.warn('Error changing map style:', error)
     }
@@ -242,18 +242,18 @@ export function MarketMap({
 
     try {
       // Add territory polygon to map
-      if (map.current.getSource('territory')) {
-        map.current.removeLayer('territory-fill')
-        map.current.removeLayer('territory-stroke')
-        map.current.removeSource('territory')
+      if (map.current!.getSource('territory')) {
+        map.current!.removeLayer('territory-fill')
+        map.current!.removeLayer('territory-stroke')
+        map.current!.removeSource('territory')
       }
 
-      map.current.addSource('territory', {
+      map.current!.addSource('territory', {
         type: 'geojson',
         data: territoryPolygon
       })
 
-      map.current.addLayer({
+      map.current!.addLayer({
         id: 'territory-fill',
         type: 'fill',
         source: 'territory',
@@ -263,7 +263,7 @@ export function MarketMap({
         }
       })
 
-      map.current.addLayer({
+      map.current!.addLayer({
         id: 'territory-stroke',
         type: 'line',
         source: 'territory',
@@ -279,9 +279,9 @@ export function MarketMap({
     return () => {
       if (map.current && map.current.getSource('territory')) {
         try {
-          map.current.removeLayer('territory-fill')
-          map.current.removeLayer('territory-stroke')
-          map.current.removeSource('territory')
+          map.current!.removeLayer('territory-fill')
+          map.current!.removeLayer('territory-stroke')
+          map.current!.removeSource('territory')
         } catch (error) {
           console.warn('Error removing territory polygon:', error)
         }
