@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo, useRef } from 'react'
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { AppSidebar } from '@/components/app-sidebar'
@@ -64,7 +64,7 @@ export default function MarketsPage() {
   const [highlightedPropertyId, setHighlightedPropertyId] = useState<string | null>(null)
   const marketDetailsTriggerRef = useRef<HTMLButtonElement>(null)
 
-  const handleViewUpdates = async (marketId: string) => {
+  const handleViewUpdates = useCallback(async (marketId: string) => {
     const market = markets.find(m => m.id === marketId)
     if (market) {
       setSelectedMarketForUpdates(market)
@@ -80,22 +80,26 @@ export default function MarketsPage() {
         setMarketProperties([])
       }
     }
-  }
+  }, [markets])
 
   const handleMarketRowClick = (market: MarketWithDetails) => {
     // Navigate to market details page
     router.push(`/markets/${market.id}`)
   }
 
-  const handleViewMarketDetails = () => {
+  const handleViewMarketDetails = useCallback(() => {
     setShowDetails(true)
-  }
+  }, [])
 
-  const handleClosePanel = () => {
+  const handleClosePanel = useCallback(() => {
     setUpdatesModalOpen(false)
     setShowDetails(false)
     setHighlightedPropertyId(null)
-  }
+  }, [])
+
+  const handlePropertyClick = useCallback((propertyId: string) => {
+    setHighlightedPropertyId(propertyId || null)
+  }, [])
 
   // Define all possible phases for the filter dropdown in specific order
   const allPhases = useMemo(() => {
@@ -488,7 +492,7 @@ export default function MarketsPage() {
                           properties={marketProperties}
                           marketName={selectedMarketForUpdates?.name || 'Market'}
                           highlightedPropertyId={highlightedPropertyId}
-                          onPropertyClick={(propertyId) => setHighlightedPropertyId(propertyId || null)}
+                          onPropertyClick={handlePropertyClick}
                           className="w-full h-full"
                         />
                       </div>

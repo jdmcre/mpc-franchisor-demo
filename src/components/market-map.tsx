@@ -11,7 +11,6 @@ interface MarketMapProps {
   properties: Property[]
   marketName: string
   highlightedPropertyId?: string | null
-  selectedPropertyId?: string | null
   hoveredPropertyId?: string | null
   onPropertyClick?: (propertyId: string) => void
   onPropertySelect?: (propertyId: string) => void
@@ -32,7 +31,6 @@ interface MarketMapProps {
 export function MarketMap({ 
   properties, 
   highlightedPropertyId, 
-  selectedPropertyId,
   hoveredPropertyId,
   onPropertyClick, 
   onPropertySelect,
@@ -46,24 +44,6 @@ export function MarketMap({
   const markers = useRef<mapboxgl.Marker[]>([])
   const [isLoaded, setIsLoaded] = useState(false)
 
-  const handleMapClick = useCallback((e: mapboxgl.MapMouseEvent) => {
-    if (!map.current) return
-    
-    // Check if click was on a marker (if so, don't unhighlight)
-    const features = map.current.queryRenderedFeatures(e.point, {
-      layers: []
-    })
-    
-    // If no features were clicked (empty space), unhighlight
-    if (features.length === 0) {
-      if (onPropertySelect) {
-        onPropertySelect('')
-      }
-      if (onPropertyClick) {
-        onPropertyClick('')
-      }
-    }
-  }, [onPropertySelect, onPropertyClick])
 
   useEffect(() => {
     if (!mapContainer.current || map.current) return
@@ -92,9 +72,6 @@ export function MarketMap({
         console.warn('Map error:', e)
       })
 
-      // Add click handler to map to unhighlight when clicking on empty space
-      map.current.on('click', handleMapClick)
-
     } catch (error) {
       console.error('Error initializing map:', error)
     }
@@ -120,7 +97,39 @@ export function MarketMap({
         map.current = null
       }
     }
-  }, [handleMapClick])
+  }, [isSatelliteView])
+
+  // Add click handler separately to avoid reinitializing map
+  useEffect(() => {
+    if (!map.current || !isLoaded) return
+
+    const handleClick = (e: mapboxgl.MapMouseEvent) => {
+      if (!map.current) return
+      
+      // Check if click was on a marker (if so, don't unhighlight)
+      const features = map.current.queryRenderedFeatures(e.point, {
+        layers: []
+      })
+      
+      // If no features were clicked (empty space), unhighlight
+      if (features.length === 0) {
+        if (onPropertySelect) {
+          onPropertySelect('')
+        }
+        if (onPropertyClick) {
+          onPropertyClick('')
+        }
+      }
+    }
+
+    map.current.on('click', handleClick)
+
+    return () => {
+      if (map.current) {
+        map.current.off('click', handleClick)
+      }
+    }
+  }, [isLoaded, onPropertySelect, onPropertyClick])
 
   useEffect(() => {
     if (!map.current || !isLoaded || properties.length === 0) return
@@ -148,21 +157,22 @@ export function MarketMap({
           const lngLat = [property.lng, property.lat] as [number, number]
           bounds.extend(lngLat)
 
-          const isSelected = selectedPropertyId === property.id
+          const isSelected = highlightedPropertyId === property.id
           const isHovered = hoveredPropertyId === property.id
 
           // Create custom circle marker with highlighting
           const markerEl = document.createElement('div')
           markerEl.className = 'custom-marker'
           markerEl.style.cssText = `
-            width: 20px;
-            height: 20px;
+            width: ${isSelected ? '24px' : '20px'};
+            height: ${isSelected ? '24px' : '20px'};
             border-radius: 50%;
             background-color: ${isSelected ? '#1d4ed8' : isHovered ? '#2563eb' : '#3b82f6'};
             border: ${isSelected ? '4px solid #fbbf24' : isHovered ? '3px solid #fbbf24' : '3px solid white'};
-            box-shadow: ${isSelected ? '0 0 0 3px rgba(251, 191, 36, 0.3)' : isHovered ? '0 0 0 2px rgba(251, 191, 36, 0.2)' : '0 2px 4px rgba(0,0,0,0.3)'};
+            box-shadow: ${isSelected ? '0 0 0 4px rgba(251, 191, 36, 0.4), 0 4px 8px rgba(0,0,0,0.3)' : isHovered ? '0 0 0 2px rgba(251, 191, 36, 0.2), 0 2px 4px rgba(0,0,0,0.3)' : '0 2px 4px rgba(0,0,0,0.3)'};
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all 0.3s ease;
+            z-index: ${isSelected ? '1000' : '1'};
           `
 
           // Add click handler
@@ -199,7 +209,7 @@ export function MarketMap({
     } catch (error) {
       console.error('Error updating map markers:', error)
     }
-  }, [properties, isLoaded, selectedPropertyId, hoveredPropertyId, onPropertySelect, onPropertyClick])
+  }, [properties, isLoaded, highlightedPropertyId, hoveredPropertyId, onPropertySelect, onPropertyClick])
 
   // Resize map when container size changes
   useEffect(() => {
