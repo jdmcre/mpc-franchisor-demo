@@ -388,11 +388,19 @@ export default function MarketsPage() {
                             </div>
                           )}
                           
-                          {/* Click indicator */}
-                          <div className="pt-1 flex justify-end">
-                            <span className="text-xs text-muted-foreground">
-                              Click to view updates
-                            </span>
+                          {/* View Updates Button */}
+                          <div className="pt-2 flex justify-end">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleViewUpdates(market.id)
+                              }}
+                              className="text-xs"
+                            >
+                              View Updates
+                            </Button>
                           </div>
                         </CardContent>
                       </Card>
@@ -492,6 +500,10 @@ export default function MarketsPage() {
                           properties={marketProperties}
                           marketName={selectedMarketForUpdates?.name || 'Market'}
                           highlightedPropertyId={highlightedPropertyId}
+                          propertyNumbers={marketProperties.reduce((acc, property, index) => {
+                            acc[property.id] = index + 1
+                            return acc
+                          }, {} as Record<string, number>)}
                           onPropertyClick={handlePropertyClick}
                           className="w-full h-full"
                         />
@@ -506,7 +518,7 @@ export default function MarketsPage() {
                           </div>
                         ) : (
                           <div className="space-y-1">
-                            {marketProperties.map((property) => {
+                            {marketProperties.map((property, index) => {
                               const isHighlighted = highlightedPropertyId === property.id
                               const hasRentData = (property.base_rent_psf || 0) > 0 || (property.expenses_psf || 0) > 0
                               
@@ -520,12 +532,18 @@ export default function MarketsPage() {
                                   }`}
                                   onClick={() => setHighlightedPropertyId(property.id)}
                                 >
-                                  <div className="flex-1 min-w-0">
-                                    <div className="font-medium truncate">
-                                      {property.title || property.address_line || 'Untitled Property'}
+                                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                                    {/* Property Number Badge */}
+                                    <div className="bg-blue-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-sm flex-shrink-0">
+                                      {index + 1}
                                     </div>
-                                    <div className="text-gray-500 truncate">
-                                      {[property.city, property.state].filter(Boolean).join(', ')}
+                                    <div className="flex-1 min-w-0">
+                                      <div className="font-medium truncate">
+                                        {property.title || property.address_line || 'Untitled Property'}
+                                      </div>
+                                      <div className="text-gray-500 truncate">
+                                        {[property.city, property.state].filter(Boolean).join(', ')}
+                                      </div>
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-2 ml-2">

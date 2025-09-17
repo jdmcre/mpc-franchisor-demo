@@ -15,6 +15,7 @@ interface MarketMapProps {
   onPropertyClick?: (propertyId: string) => void
   onPropertySelect?: (propertyId: string) => void
   isSatelliteView?: boolean
+  propertyNumbers?: Record<string, number>
   territoryPolygon?: {
     type: 'Feature'
     geometry: {
@@ -35,6 +36,7 @@ export function MarketMap({
   onPropertyClick, 
   onPropertySelect,
   isSatelliteView = false,
+  propertyNumbers = {},
   territoryPolygon,
   showTerritory = false,
   className = '' 
@@ -49,10 +51,10 @@ export function MarketMap({
     if (!mapContainer.current || map.current) return
 
     try {
-      // Initialize map
+      // Initialize map with default style (will be changed later if needed)
       map.current = new mapboxgl.Map({
         container: mapContainer.current,
-        style: isSatelliteView ? 'mapbox://styles/mapbox/satellite-v9' : 'mapbox://styles/mapbox/streets-v12',
+        style: 'mapbox://styles/mapbox/streets-v12', // Default to streets
         center: [-98.5795, 39.8283], // Center of US as default
         zoom: 4,
         attributionControl: false
@@ -97,7 +99,7 @@ export function MarketMap({
         map.current = null
       }
     }
-  }, [isSatelliteView])
+  }, []) // Remove isSatelliteView from dependencies
 
   // Add click handler separately to avoid reinitializing map
   useEffect(() => {
@@ -159,13 +161,14 @@ export function MarketMap({
 
           const isSelected = highlightedPropertyId === property.id
           const isHovered = hoveredPropertyId === property.id
+          const propertyNumber = propertyNumbers[property.id] || '?'
 
-          // Create custom circle marker with highlighting
+          // Create custom circle marker with highlighting and number
           const markerEl = document.createElement('div')
           markerEl.className = 'custom-marker'
           markerEl.style.cssText = `
-            width: ${isSelected ? '24px' : '20px'};
-            height: ${isSelected ? '24px' : '20px'};
+            width: ${isSelected ? '32px' : '28px'};
+            height: ${isSelected ? '32px' : '28px'};
             border-radius: 50%;
             background-color: ${isSelected ? '#1d4ed8' : isHovered ? '#2563eb' : '#3b82f6'};
             border: ${isSelected ? '4px solid #fbbf24' : isHovered ? '3px solid #fbbf24' : '3px solid white'};
@@ -173,7 +176,15 @@ export function MarketMap({
             cursor: pointer;
             transition: all 0.3s ease;
             z-index: ${isSelected ? '1000' : '1'};
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: ${isSelected ? '12px' : '10px'};
+            color: white;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
           `
+          markerEl.textContent = propertyNumber.toString()
 
           // Add click handler
           markerEl.addEventListener('click', (e) => {
@@ -209,7 +220,7 @@ export function MarketMap({
     } catch (error) {
       console.error('Error updating map markers:', error)
     }
-  }, [properties, isLoaded, highlightedPropertyId, hoveredPropertyId, onPropertySelect, onPropertyClick])
+  }, [properties, isLoaded, highlightedPropertyId, hoveredPropertyId, propertyNumbers, onPropertySelect, onPropertyClick])
 
   // Resize map when container size changes
   useEffect(() => {
@@ -239,8 +250,13 @@ export function MarketMap({
     if (!map.current || !isLoaded) return
 
     try {
-      const newStyle = isSatelliteView ? 'mapbox://styles/mapbox/satellite-v9' : 'mapbox://styles/mapbox/streets-v12'
-      map.current!.setStyle(newStyle)
+      const newStyle = isSatelliteView ? 'mapbox://styles/mapbox/satellite-streets-v12' : 'mapbox://styles/mapbox/streets-v12'
+      
+      // Check if we need to change the style
+      const currentStyle = map.current!.getStyle()
+      if (currentStyle && currentStyle.name !== newStyle.split('/').pop()) {
+        map.current!.setStyle(newStyle)
+      }
     } catch (error) {
       console.warn('Error changing map style:', error)
     }

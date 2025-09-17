@@ -275,6 +275,50 @@ export const createColumns = (handleViewUpdates: (marketId: string) => void): Co
     },
   },
   {
+    accessorKey: "franchisees",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Franchisee
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      )
+    },
+    cell: ({ row }) => {
+      const franchisees = row.getValue("franchisees") as Array<{
+        id: string
+        full_name: string | null
+        email: string | null
+        phone: string | null
+        avatar_url: string | null
+        status: string | null
+      }>
+      
+      if (!franchisees || franchisees.length === 0) {
+        return <div className="text-sm text-muted-foreground">No franchisee</div>
+      }
+      
+      // Get the first franchisee (assuming one per market for now)
+      const franchisee = franchisees[0]
+      
+      if (!franchisee.full_name) {
+        return <div className="text-sm text-muted-foreground">No name</div>
+      }
+      
+      return (
+        <div className="min-w-[120px]">
+          <div className="text-sm font-medium truncate" title={franchisee.full_name}>
+            {franchisee.full_name}
+          </div>
+        </div>
+      )
+    },
+    size: 150,
+  },
+  {
     accessorKey: "phases",
     header: "Phases",
     cell: ({ row }) => {

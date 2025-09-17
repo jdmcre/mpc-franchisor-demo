@@ -97,6 +97,7 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
   const [modalProperty, setModalProperty] = useState<Property | null>(null)
   const [pdfModalOpen, setPdfModalOpen] = useState(false)
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
+  const [pdfTitle, setPdfTitle] = useState<string>('')
   const [view, setView] = useState<'map' | 'list'>('map')
   const propertiesListRef = useRef<HTMLDivElement>(null)
 
@@ -113,6 +114,15 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
     }
     return properties.filter(property => property.phase === selectedPhase)
   }, [properties, selectedPhase])
+
+  // Create property numbers mapping for demo purposes
+  const propertyNumbers = useMemo(() => {
+    const numbers: Record<string, number> = {}
+    filteredProperties.forEach((property, index) => {
+      numbers[property.id] = index + 1
+    })
+    return numbers
+  }, [filteredProperties])
 
   // Load data on component mount
   React.useEffect(() => {
@@ -284,14 +294,16 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
     // Don't clear selectedPropertyId here - let it persist for map highlighting
   }
 
-  const handlePdfClick = (url: string) => {
+  const handlePdfClick = (url: string, title: string) => {
     setPdfUrl(url)
+    setPdfTitle(title)
     setPdfModalOpen(true)
   }
 
   const closePdfModal = () => {
     setPdfModalOpen(false)
     setPdfUrl(null)
+    setPdfTitle('')
   }
 
   // Clear filter
@@ -359,7 +371,7 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
               /* Map View Layout */
               <div className="flex-1 flex gap-6 p-4 md:p-6 min-h-0">
                 {/* Properties List - Dynamic width with minimum */}
-                <div className="w-auto min-w-80 flex-shrink-0 min-h-0">
+                <div className="w-auto min-w-96 flex-shrink-0 min-h-0">
                   <Card className="h-full flex flex-col">
                     <CardHeader className="flex-shrink-0">
                       <div className="flex items-center justify-between mb-3">
@@ -400,7 +412,7 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
                     <CardContent className="flex-1 overflow-y-auto min-h-0">
                       <div ref={propertiesListRef} className="space-y-3">
                         {filteredProperties.length > 0 ? (
-                          filteredProperties.map((property) => (
+                          filteredProperties.map((property, index) => (
                           <div
                             key={property.id}
                             data-property-id={property.id}
@@ -429,6 +441,10 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
                                   </div>
                                 )}
                                 
+                                {/* Property Number Badge */}
+                                <div className="absolute top-2 left-2 bg-blue-600 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center shadow-lg">
+                                  {index + 1}
+                                </div>
                               </div>
 
                               {/* Property Details - Right Side */}
@@ -536,6 +552,7 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
                         highlightedPropertyId={selectedPropertyId}
                         hoveredPropertyId={hoveredPropertyId}
                         isSatelliteView={isSatelliteView}
+                        propertyNumbers={propertyNumbers}
                         onPropertySelect={handlePropertySelect}
                         territoryPolygon={market.territory_polygon as {
                           type: 'Feature'
@@ -691,12 +708,11 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
                   <div className="space-y-2">
                     <div 
                       className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors cursor-pointer"
-                      onClick={() => handlePdfClick('https://www.venturedfw.com/files/listings/2124/Abilene%20-%20Former%20Popeyes%20-%20841%20Ambler%20Ave.pdf')}
+                      onClick={() => handlePdfClick('https://arfhkkmrmjworxfilslg.supabase.co/storage/v1/object/public/property-flyers/ce359af4-f81b-4cf2-afe2-2937882816fe_1758134374147.pdf', 'Marketing Material')}
                     >
                       <FileText className="h-4 w-4" />
                       <span>Marketing Material</span>
                     </div>
-                    <p className="text-xs text-gray-500 italic">*sample pdf for demo purposes</p>
                   </div>
                 </div>
 
@@ -723,22 +739,13 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
                     <div>
                       <h4 className="text-sm font-medium text-gray-700 mb-2">Space Docs</h4>
                       <div className="space-y-1">
-                        <a 
-                          href="#" 
-                          className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors"
-                          onClick={(e) => e.preventDefault()}
+                        <div 
+                          className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors cursor-pointer"
+                          onClick={() => handlePdfClick('https://arfhkkmrmjworxfilslg.supabase.co/storage/v1/object/public/property-flyers/ce359af4-f81b-4cf2-afe2-2937882816fe_1758135645050.pdf', 'As Builts')}
                         >
                           <Layout className="h-4 w-4" />
-                          <span>Floor Plan.pdf</span>
-                        </a>
-                        <a 
-                          href="#" 
-                          className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors"
-                          onClick={(e) => e.preventDefault()}
-                        >
-                          <File className="h-4 w-4" />
-                          <span>CAD Drawing.dwg</span>
-                        </a>
+                          <span>As Builts</span>
+                        </div>
                       </div>
                     </div>
 
@@ -746,30 +753,20 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
                     <div>
                       <h4 className="text-sm font-medium text-gray-700 mb-2">Demographics</h4>
                       <div className="space-y-1">
-                        <a 
-                          href="#" 
-                          className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors"
-                          onClick={(e) => e.preventDefault()}
+                        <div 
+                          className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors cursor-pointer"
+                          onClick={() => handlePdfClick('https://arfhkkmrmjworxfilslg.supabase.co/storage/v1/object/public/property-flyers/ce359af4-f81b-4cf2-afe2-2937882816fe_1758135150124.pdf', 'Demographic Report')}
                         >
                           <FileText className="h-4 w-4" />
-                          <span>Market Analysis.pdf</span>
-                        </a>
-                        <a 
-                          href="#" 
-                          className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors"
-                          onClick={(e) => e.preventDefault()}
+                          <span>Demographic Report</span>
+                        </div>
+                        <div 
+                          className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors cursor-pointer"
+                          onClick={() => handlePdfClick('https://arfhkkmrmjworxfilslg.supabase.co/storage/v1/object/public/property-flyers/ce359af4-f81b-4cf2-afe2-2937882816fe_1758135128365.pdf', 'Placer.ai Report')}
                         >
                           <FileText className="h-4 w-4" />
-                          <span>Population Data.pdf</span>
-                        </a>
-                        <a 
-                          href="#" 
-                          className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors"
-                          onClick={(e) => e.preventDefault()}
-                        >
-                          <FileText className="h-4 w-4" />
-                          <span>Traffic Study.pdf</span>
-                        </a>
+                          <span>Placer.ai Report</span>
+                        </div>
                       </div>
                     </div>
 
@@ -777,22 +774,13 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
                     <div>
                       <h4 className="text-sm font-medium text-gray-700 mb-2">Deal Docs</h4>
                       <div className="space-y-1">
-                        <a 
-                          href="#" 
-                          className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors"
-                          onClick={(e) => e.preventDefault()}
+                        <div 
+                          className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors cursor-pointer"
+                          onClick={() => handlePdfClick('https://arfhkkmrmjworxfilslg.supabase.co/storage/v1/object/public/property-flyers/ce359af4-f81b-4cf2-afe2-2937882816fe_1758135364242.pdf', 'LOI Template')}
                         >
                           <FileText className="h-4 w-4" />
-                          <span>Lease Agreement.pdf</span>
-                        </a>
-                        <a 
-                          href="#" 
-                          className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors"
-                          onClick={(e) => e.preventDefault()}
-                        >
-                          <FileText className="h-4 w-4" />
-                          <span>LOI Template.pdf</span>
-                        </a>
+                          <span>LOI Template</span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -811,6 +799,7 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
                       marketName={market?.name || ''}
                       className="h-full w-full"
                       highlightedPropertyId={modalProperty.id}
+                      propertyNumbers={{ [modalProperty.id]: 1 }}
                       onPropertySelect={() => {}}
                     />
                   </div>
@@ -825,7 +814,7 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
       <Dialog open={pdfModalOpen} onOpenChange={setPdfModalOpen}>
         <DialogContent className="max-w-6xl max-h-[90vh] p-0">
           <DialogHeader className="p-4 border-b">
-            <DialogTitle>Marketing Material</DialogTitle>
+            <DialogTitle>{pdfTitle || 'Document'}</DialogTitle>
           </DialogHeader>
           <div className="flex-1 p-4">
             {pdfUrl && (
