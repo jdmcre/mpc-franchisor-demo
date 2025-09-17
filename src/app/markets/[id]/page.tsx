@@ -537,7 +537,7 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
                         hoveredPropertyId={hoveredPropertyId}
                         isSatelliteView={isSatelliteView}
                         onPropertySelect={handlePropertySelect}
-                        territoryPolygon={market.territory_polygon}
+                        territoryPolygon={market.territory_polygon as any}
                         showTerritory={showTerritory}
                       />
                     </CardContent>
