@@ -166,7 +166,7 @@ export class DataService {
     return furthestPhase
   }
 
-  // Fetch enhanced market data with property counts, phases, and franchisee information
+  // Fetch enhanced market data with property counts, phases, franchisee information, and latest update
   static async getMarketsWithDetails(): Promise<(Market & { 
     propertyCount: number
     phases: string[]
@@ -178,14 +178,19 @@ export class DataService {
       avatar_url: string | null
       status: string | null
     }>
+    latestUpdate?: {
+      message: string
+      created_at: string
+    }
   })[]> {
     const markets = await this.getMarkets()
 
     const marketsWithDetails = await Promise.all(
       markets.map(async (market) => {
-        const [properties, franchisees] = await Promise.all([
+        const [properties, franchisees, latestUpdate] = await Promise.all([
           this.getPropertiesByMarket(market.id),
-          this.getMarketFranchisees(market.id)
+          this.getMarketFranchisees(market.id),
+          this.getLatestMarketUpdate(market.id)
         ])
         
         // Extract unique phases from properties
@@ -199,7 +204,8 @@ export class DataService {
           ...market,
           propertyCount: properties.length,
           phases,
-          franchisees
+          franchisees,
+          latestUpdate
         }
       })
     )
@@ -226,6 +232,27 @@ export class DataService {
     }
 
     return data || []
+  }
+
+  static async getLatestMarketUpdate(marketId: string): Promise<{ message: string; created_at: string } | null> {
+    const { data, error } = await supabase
+      .from('market_updates')
+      .select('message, created_at')
+      .eq('market_id', marketId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
+
+    if (error) {
+      // No updates found is not an error, just return null
+      if (error.code === 'PGRST116') {
+        return null
+      }
+      console.error('Error fetching latest market update:', error)
+      return null
+    }
+
+    return data
   }
 
   static async createMarketUpdate(marketId: string, author: string, message: string): Promise<MarketUpdate | null> {

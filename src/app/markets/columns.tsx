@@ -17,6 +17,10 @@ interface MarketWithDetails extends Market {
     avatar_url: string | null
     status: string | null
   }>
+  latestUpdate?: {
+    message: string
+    created_at: string
+  }
 }
 
 export const createPropertyColumns = (onViewDetails: (property: Property) => void): ColumnDef<Property>[] => [
@@ -246,11 +250,12 @@ export const createColumns = (handleViewUpdates: (marketId: string) => void): Co
     },
     cell: ({ row }) => {
       return (
-        <div className="font-medium max-w-[200px] truncate" title={row.getValue("name")}>
+        <div className="font-medium max-w-[120px] truncate" title={row.getValue("name")}>
           {row.getValue("name")}
         </div>
       )
     },
+    size: 120,
   },
   {
     accessorKey: "propertyCount",
@@ -268,11 +273,12 @@ export const createColumns = (handleViewUpdates: (marketId: string) => void): Co
     cell: ({ row }) => {
       const count = row.getValue("propertyCount") as number
       return (
-        <div className="text-sm">
+        <div className="text-sm text-center">
           {count}
         </div>
       )
     },
+    size: 80,
   },
   {
     accessorKey: "franchisees",
@@ -309,14 +315,14 @@ export const createColumns = (handleViewUpdates: (marketId: string) => void): Co
       }
       
       return (
-        <div className="min-w-[120px]">
+        <div className="max-w-[100px]">
           <div className="text-sm font-medium truncate" title={franchisee.full_name}>
             {franchisee.full_name}
           </div>
         </div>
       )
     },
-    size: 150,
+    size: 100,
   },
   {
     accessorKey: "phases",
@@ -344,26 +350,47 @@ export const createColumns = (handleViewUpdates: (marketId: string) => void): Co
     },
   },
   {
-    accessorKey: "created_at",
+    accessorKey: "latestUpdate",
     header: ({ column }) => {
       return (
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
-          Created
+          Last Update
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       )
     },
     cell: ({ row }) => {
-      const date = new Date(row.getValue("created_at"))
+      const latestUpdate = row.getValue("latestUpdate") as { message: string; created_at: string } | undefined
+      
+      if (!latestUpdate) {
+        return <div className="text-sm text-muted-foreground">No updates</div>
+      }
+      
       return (
-        <div className="text-sm">
-          {date.toLocaleDateString()}
+        <div className="text-sm max-w-[200px]">
+          <div 
+            className="line-clamp-2 text-ellipsis overflow-hidden"
+            title={latestUpdate.message}
+            style={{
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}
+          >
+            {latestUpdate.message}
+          </div>
+          <div className="text-xs text-muted-foreground mt-1">
+            {new Date(latestUpdate.created_at).toLocaleDateString()}
+          </div>
         </div>
       )
     },
+    size: 200,
   },
   {
     id: "actions",

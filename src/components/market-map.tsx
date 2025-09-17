@@ -170,7 +170,7 @@ export function MarketMap({
             width: ${isSelected ? '32px' : '28px'};
             height: ${isSelected ? '32px' : '28px'};
             border-radius: 50%;
-            background-color: ${isSelected ? '#1d4ed8' : isHovered ? '#2563eb' : '#3b82f6'};
+            background-color: ${isSelected ? '#4a5a6b' : isHovered ? '#5a6a7b' : '#637484'};
             border: ${isSelected ? '4px solid #fbbf24' : isHovered ? '3px solid #fbbf24' : '3px solid white'};
             box-shadow: ${isSelected ? '0 0 0 4px rgba(251, 191, 36, 0.4), 0 4px 8px rgba(0,0,0,0.3)' : isHovered ? '0 0 0 2px rgba(251, 191, 36, 0.2), 0 2px 4px rgba(0,0,0,0.3)' : '0 2px 4px rgba(0,0,0,0.3)'};
             cursor: pointer;
@@ -284,7 +284,7 @@ export function MarketMap({
         type: 'fill',
         source: 'territory',
         paint: {
-          'fill-color': '#3b82f6',
+          'fill-color': '#637484',
           'fill-opacity': 0.1
         }
       })
@@ -294,7 +294,7 @@ export function MarketMap({
         type: 'line',
         source: 'territory',
         paint: {
-          'line-color': '#3b82f6',
+          'line-color': '#637484',
           'line-width': 2
         }
       })
@@ -335,7 +335,7 @@ export function MarketMap({
       {!isLoaded && (
         <div className="absolute inset-0 bg-gray-100 rounded-lg flex items-center justify-center">
           <div className="text-center text-gray-500">
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mx-auto mb-1"></div>
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 mx-auto mb-1" style={{ borderBottomColor: '#637484' }}></div>
             <div className="text-xs">Loading map...</div>
           </div>
         </div>

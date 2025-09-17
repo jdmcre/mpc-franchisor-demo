@@ -23,7 +23,7 @@ import { Market, MarketUpdate, Property, supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { MapPin, Building2, User, Users, MessageSquare, Edit, Trash2, X, Filter } from 'lucide-react'
+import { MapPin, Building2, User, Users, MessageSquare, Edit, Trash2, X, Filter, ChevronRight, ChevronDown, ExternalLink, FileText, Image } from 'lucide-react'
 import { ViewToggle } from '@/components/view-toggle'
 import { DataTable } from '@/components/ui/data-table'
 import { createColumns } from './columns'
@@ -44,6 +44,10 @@ interface MarketWithDetails extends Market {
     avatar_url: string | null
     status: string | null
   }>
+  latestUpdate?: {
+    message: string
+    created_at: string
+  }
 }
 
 // Remove the old ChatMessage interface since we'll use MarketUpdate from Supabase
@@ -62,6 +66,7 @@ export default function MarketsPage() {
   const [showDetails, setShowDetails] = useState(false)
   const [marketProperties, setMarketProperties] = useState<Property[]>([])
   const [highlightedPropertyId, setHighlightedPropertyId] = useState<string | null>(null)
+  const [expandedProperties, setExpandedProperties] = useState<Set<string>>(new Set())
   const marketDetailsTriggerRef = useRef<HTMLButtonElement>(null)
 
   const handleViewUpdates = useCallback(async (marketId: string) => {
@@ -95,10 +100,23 @@ export default function MarketsPage() {
     setUpdatesModalOpen(false)
     setShowDetails(false)
     setHighlightedPropertyId(null)
+    setExpandedProperties(new Set())
   }, [])
 
   const handlePropertyClick = useCallback((propertyId: string) => {
     setHighlightedPropertyId(propertyId || null)
+  }, [])
+
+  const togglePropertyExpansion = useCallback((propertyId: string) => {
+    setExpandedProperties(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(propertyId)) {
+        newSet.delete(propertyId)
+      } else {
+        newSet.add(propertyId)
+      }
+      return newSet
+    })
   }, [])
 
   // Define all possible phases for the filter dropdown in specific order
@@ -335,7 +353,7 @@ export default function MarketsPage() {
                             <CardTitle className="text-lg">{market.name}</CardTitle>
                             {/* Phase Tag */}
                             {market.phases.length > 0 && (
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium" style={{ backgroundColor: '#e8ecf0', color: '#637484' }}>
                                 {normalizePhaseText(market.phases[0])}
                               </span>
                             )}
@@ -370,8 +388,8 @@ export default function MarketsPage() {
                                   return (
                                     <div key={franchisee.id} className="flex items-center gap-2 p-1">
                                       <div className="flex-shrink-0">
-                                        <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center">
-                                          <span className="text-xs font-medium text-blue-700">
+                                        <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#e8ecf0' }}>
+                                          <span className="text-xs font-medium" style={{ color: '#637484' }}>
                                             {getInitials(franchisee.full_name)}
                                           </span>
                                         </div>
@@ -472,15 +490,18 @@ export default function MarketsPage() {
             </SheetHeader>
 
             {/* Content Area - Side by Side when details are shown */}
-            <div className="flex-1 overflow-y-auto p-4">
+            <div 
+              className="flex-1 overflow-y-auto p-4"
+              onClick={() => setHighlightedPropertyId(null)}
+            >
               <div className={`flex gap-6 h-full ${showDetails ? 'flex-row' : 'flex-col'}`}>
                 {/* Details Section - Shows on the LEFT when expanded */}
                 {showDetails && (
                   <div className="w-1/2 pl-2">
                     <div className="flex items-center justify-between mb-3 pb-2 border-b">
                       <div className="flex items-center gap-2">
-                        <Building2 className="h-4 w-4 text-blue-600" />
-                        <h3 className="text-sm font-semibold text-blue-600">Market Details</h3>
+                        <Building2 className="h-4 w-4 text-gray-600" />
+                        <h3 className="text-sm font-semibold text-gray-600">Market Details</h3>
                       </div>
                       <Button
                         variant="ghost"
@@ -517,49 +538,130 @@ export default function MarketsPage() {
                             No properties found
                           </div>
                         ) : (
-                          <div className="space-y-1">
+                          <div className="space-y-2">
                             {marketProperties.map((property, index) => {
                               const isHighlighted = highlightedPropertyId === property.id
+                              const isExpanded = expandedProperties.has(property.id)
                               const hasRentData = (property.base_rent_psf || 0) > 0 || (property.expenses_psf || 0) > 0
                               
                               return (
                                 <div 
                                   key={property.id} 
-                                  className={`flex items-center justify-between p-2 rounded text-xs cursor-pointer transition-colors ${
+                                  className={`rounded-lg border transition-all duration-200 ${
                                     isHighlighted 
-                                      ? 'bg-blue-100 border-2 border-blue-300' 
-                                      : 'bg-gray-50 hover:bg-gray-100'
+                                      ? 'bg-blue-50 border-blue-300 shadow-sm' 
+                                      : 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-sm'
                                   }`}
-                                  onClick={() => setHighlightedPropertyId(property.id)}
+                                  onClick={(e) => e.stopPropagation()}
                                 >
-                                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                                    {/* Property Number Badge */}
-                                    <div className="bg-blue-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-sm flex-shrink-0">
-                                      {index + 1}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="font-medium truncate">
-                                        {property.title || property.address_line || 'Untitled Property'}
+                                  {/* Main Property Card */}
+                                  <div 
+                                    className="flex items-center justify-between p-3 cursor-pointer"
+                                    onClick={() => setHighlightedPropertyId(property.id)}
+                                  >
+                                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                                      {/* Property Number Badge */}
+                                      <div className="text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center shadow-sm flex-shrink-0" style={{ backgroundColor: '#637484' }}>
+                                        {index + 1}
                                       </div>
-                                      <div className="text-gray-500 truncate">
-                                        {[property.city, property.state].filter(Boolean).join(', ')}
-                                      </div>
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center gap-2 ml-2">
-                                    {property.size_sqft && (
-                                      <span className="text-gray-600">
-                                        {property.size_sqft.toLocaleString()} SF
-                                      </span>
-                                    )}
-                                    {hasRentData && (
-                                      <span className="text-gray-600 font-medium text-right">
-                                        <div className="text-xs">
-                                          ${(property.base_rent_psf || 0).toFixed(2)} + ${(property.expenses_psf || 0).toFixed(2)}/SF
+                                      <div className="flex-1 min-w-0">
+                                        <div className="font-medium text-sm truncate">
+                                          {property.title || property.address_line || 'Untitled Property'}
                                         </div>
-                                      </span>
-                                    )}
+                                        <div className="text-gray-500 text-xs truncate">
+                                          {[property.city, property.state].filter(Boolean).join(', ')}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-3 ml-2">
+                                      <div className="text-right">
+                                        {property.size_sqft && (
+                                          <div className="text-gray-600 text-xs">
+                                            {property.size_sqft.toLocaleString()} SF
+                                          </div>
+                                        )}
+                                        {hasRentData && (
+                                          <div className="text-gray-600 font-medium text-xs">
+                                            ${(property.base_rent_psf || 0).toFixed(2)} + ${(property.expenses_psf || 0).toFixed(2)}/SF
+                                          </div>
+                                        )}
+                                      </div>
+                                      {/* Toggle Arrow */}
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          togglePropertyExpansion(property.id)
+                                        }}
+                                        className="p-1 hover:bg-gray-100 rounded transition-colors"
+                                      >
+                                        {isExpanded ? (
+                                          <ChevronDown className="h-4 w-4 text-gray-500" />
+                                        ) : (
+                                          <ChevronRight className="h-4 w-4 text-gray-500" />
+                                        )}
+                                      </button>
+                                    </div>
                                   </div>
+
+                                  {/* Expanded Details */}
+                                  {isExpanded && (
+                                    <div className="border-t border-gray-100 p-3 bg-gray-50/50">
+                                      <div className="flex gap-4">
+                                        {/* Property Image */}
+                                        <div className="flex-shrink-0">
+                                          <div className="w-24 h-24 bg-gray-200 rounded-lg flex items-center justify-center overflow-hidden">
+                                            {property.photo_url ? (
+                                              <img 
+                                                src={property.photo_url} 
+                                                alt={property.title || 'Property image'} 
+                                                className="w-full h-full object-cover"
+                                                onError={(e) => {
+                                                  e.currentTarget.style.display = 'none'
+                                                  e.currentTarget.nextElementSibling?.classList.remove('hidden')
+                                                }}
+                                              />
+                                            ) : null}
+                                            <div className={`flex items-center justify-center ${property.photo_url ? 'hidden' : ''}`}>
+                                              <Image className="h-6 w-6 text-gray-400" />
+                                              <span className="text-xs text-gray-500 ml-2">No image</span>
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        {/* Marketing Materials and Notes */}
+                                        <div className="flex-1 min-w-0">
+                                          <div className="space-y-3">
+                                            {/* View Brochure Button */}
+                                            <a 
+                                              href="https://arfhkkmrmjworxfilslg.supabase.co/storage/v1/object/public/property-flyers/ce359af4-f81b-4cf2-afe2-2937882816fe_1758134374147.pdf"
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="inline-flex items-center gap-2 text-xs transition-colors"
+                                              style={{ color: '#637484' }}
+                                              onMouseEnter={(e) => e.currentTarget.style.color = '#4a5a6b'}
+                                              onMouseLeave={(e) => e.currentTarget.style.color = '#637484'}
+                                            >
+                                              <ExternalLink className="h-3 w-3" />
+                                              <span>View Brochure</span>
+                                            </a>
+
+                                            {/* Notes */}
+                                            {property.notes && (
+                                              <div className="text-xs text-gray-600">
+                                                <div className="text-gray-500 leading-relaxed">{property.notes}</div>
+                                              </div>
+                                            )}
+                                            {property.display_number && (
+                                              <div className="text-xs text-gray-600">
+                                                <div className="font-medium">Display Number:</div>
+                                                <div className="text-gray-500">{property.display_number}</div>
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               )
                             })}
@@ -606,9 +708,10 @@ export default function MarketsPage() {
                           return (
                             <div key={message.id} className="group transition-all duration-500">
                               <div className="flex items-start gap-3">
-                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0 ${
-                                  isOrgAdmins ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
-                                }`}>
+                                <div 
+                                  className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0"
+                                  style={isOrgAdmins ? { backgroundColor: '#e8ecf0', color: '#637484' } : { backgroundColor: '#f3f4f6', color: '#374151' }}
+                                >
                                   {isOrgAdmins ? 'OA' : 'MP'}
                                 </div>
                                 <div className="flex-1 min-w-0">

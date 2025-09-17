@@ -442,7 +442,7 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
                                 )}
                                 
                                 {/* Property Number Badge */}
-                                <div className="absolute top-2 left-2 bg-blue-600 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center shadow-lg">
+                                <div className="absolute top-2 left-2 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center shadow-lg" style={{ backgroundColor: '#637484' }}>
                                   {index + 1}
                                 </div>
                               </div>
@@ -491,7 +491,10 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
                             <p className="text-sm">No properties found for this phase</p>
                             <button
                               onClick={clearFilter}
-                              className="text-xs text-blue-600 hover:text-blue-700 mt-1"
+                              className="text-xs mt-1 transition-colors"
+                              style={{ color: '#637484' }}
+                              onMouseEnter={(e) => e.currentTarget.style.color = '#4a5a6b'}
+                              onMouseLeave={(e) => e.currentTarget.style.color = '#637484'}
                             >
                               Clear filter to see all properties
                             </button>
@@ -707,7 +710,10 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
                 <div>
                   <div className="space-y-2">
                     <div 
-                      className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors cursor-pointer"
+                      className="flex items-center gap-2 text-sm transition-colors cursor-pointer"
+                      style={{ color: '#637484' }}
+                      onMouseEnter={(e) => e.currentTarget.style.color = '#4a5a6b'}
+                      onMouseLeave={(e) => e.currentTarget.style.color = '#637484'}
                       onClick={() => handlePdfClick('https://arfhkkmrmjworxfilslg.supabase.co/storage/v1/object/public/property-flyers/ce359af4-f81b-4cf2-afe2-2937882816fe_1758134374147.pdf', 'Marketing Material')}
                     >
                       <FileText className="h-4 w-4" />
@@ -740,7 +746,10 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
                       <h4 className="text-sm font-medium text-gray-700 mb-2">Space Docs</h4>
                       <div className="space-y-1">
                         <div 
-                          className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors cursor-pointer"
+                          className="flex items-center gap-2 text-sm transition-colors cursor-pointer"
+                      style={{ color: '#637484' }}
+                      onMouseEnter={(e) => e.currentTarget.style.color = '#4a5a6b'}
+                      onMouseLeave={(e) => e.currentTarget.style.color = '#637484'}
                           onClick={() => handlePdfClick('https://arfhkkmrmjworxfilslg.supabase.co/storage/v1/object/public/property-flyers/ce359af4-f81b-4cf2-afe2-2937882816fe_1758135645050.pdf', 'As Builts')}
                         >
                           <Layout className="h-4 w-4" />
@@ -754,14 +763,20 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
                       <h4 className="text-sm font-medium text-gray-700 mb-2">Demographics</h4>
                       <div className="space-y-1">
                         <div 
-                          className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors cursor-pointer"
+                          className="flex items-center gap-2 text-sm transition-colors cursor-pointer"
+                      style={{ color: '#637484' }}
+                      onMouseEnter={(e) => e.currentTarget.style.color = '#4a5a6b'}
+                      onMouseLeave={(e) => e.currentTarget.style.color = '#637484'}
                           onClick={() => handlePdfClick('https://arfhkkmrmjworxfilslg.supabase.co/storage/v1/object/public/property-flyers/ce359af4-f81b-4cf2-afe2-2937882816fe_1758135150124.pdf', 'Demographic Report')}
                         >
                           <FileText className="h-4 w-4" />
                           <span>Demographic Report</span>
                         </div>
                         <div 
-                          className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors cursor-pointer"
+                          className="flex items-center gap-2 text-sm transition-colors cursor-pointer"
+                      style={{ color: '#637484' }}
+                      onMouseEnter={(e) => e.currentTarget.style.color = '#4a5a6b'}
+                      onMouseLeave={(e) => e.currentTarget.style.color = '#637484'}
                           onClick={() => handlePdfClick('https://arfhkkmrmjworxfilslg.supabase.co/storage/v1/object/public/property-flyers/ce359af4-f81b-4cf2-afe2-2937882816fe_1758140730215.pdf', 'Placer.ai Report')}
                         >
                           <FileText className="h-4 w-4" />
@@ -775,7 +790,10 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
                       <h4 className="text-sm font-medium text-gray-700 mb-2">Deal Docs</h4>
                       <div className="space-y-1">
                         <div 
-                          className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors cursor-pointer"
+                          className="flex items-center gap-2 text-sm transition-colors cursor-pointer"
+                      style={{ color: '#637484' }}
+                      onMouseEnter={(e) => e.currentTarget.style.color = '#4a5a6b'}
+                      onMouseLeave={(e) => e.currentTarget.style.color = '#637484'}
                           onClick={() => handlePdfClick('https://arfhkkmrmjworxfilslg.supabase.co/storage/v1/object/public/property-flyers/ce359af4-f81b-4cf2-afe2-2937882816fe_1758135364242.pdf', 'LOI Template')}
                         >
                           <FileText className="h-4 w-4" />

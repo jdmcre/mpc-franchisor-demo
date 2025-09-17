@@ -89,7 +89,19 @@ export function MarketUpdateForm({
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder={editingUpdate ? "Edit your message..." : "Type your message..."}
-              className="min-h-[40px] max-h-[100px] resize-none border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              className="min-h-[40px] max-h-[100px] resize-none border-gray-300 focus:ring-1"
+              style={{ 
+                '--tw-ring-color': '#637484',
+                '--tw-border-opacity': '1'
+              } as React.CSSProperties}
+              onFocus={(e) => {
+                e.target.style.borderColor = '#637484'
+                e.target.style.boxShadow = '0 0 0 1px #637484'
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = '#d1d5db'
+                e.target.style.boxShadow = 'none'
+              }}
               disabled={isSubmitting}
               required
               onKeyDown={(e) => {
