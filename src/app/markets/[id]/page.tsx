@@ -533,7 +533,7 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
                         properties={filteredProperties} 
                         marketName={market.name}
                         className="h-full w-full rounded-b-lg"
-                        selectedPropertyId={selectedPropertyId}
+                        highlightedPropertyId={selectedPropertyId}
                         hoveredPropertyId={hoveredPropertyId}
                         isSatelliteView={isSatelliteView}
                         onPropertySelect={handlePropertySelect}
@@ -810,7 +810,7 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
                       properties={[modalProperty]} 
                       marketName={market?.name || ''}
                       className="h-full w-full"
-                      selectedPropertyId={modalProperty.id}
+                      highlightedPropertyId={modalProperty.id}
                       onPropertySelect={() => {}}
                     />
                   </div>
