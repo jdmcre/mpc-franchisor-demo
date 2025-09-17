@@ -17,9 +17,9 @@ interface MarketMapProps {
   onPropertySelect?: (propertyId: string) => void
   isSatelliteView?: boolean
   territoryPolygon?: {
-    type: string
+    type: 'Feature'
     geometry: {
-      type: string
+      type: 'Polygon'
       coordinates: number[][][]
     }
     properties: Record<string, unknown>
