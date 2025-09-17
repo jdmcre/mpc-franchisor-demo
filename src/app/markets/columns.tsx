@@ -326,7 +326,17 @@ export const createColumns = (handleViewUpdates: (marketId: string) => void): Co
   },
   {
     accessorKey: "phases",
-    header: "Phases",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Phases
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      )
+    },
     cell: ({ row }) => {
       const phases = row.getValue("phases") as string[]
       if (!phases || phases.length === 0) {
@@ -347,6 +357,32 @@ export const createColumns = (handleViewUpdates: (marketId: string) => void): Co
           )}
         </div>
       )
+    },
+    sortingFn: (rowA, rowB) => {
+      const phasesA = rowA.getValue("phases") as string[]
+      const phasesB = rowB.getValue("phases") as string[]
+      
+      // Define phase order for consistent sorting
+      const phaseOrder = ['intro', 'site_selection', 'loi', 'lease', 'closed']
+      
+      const getPhasePriority = (phases: string[]) => {
+        if (!phases || phases.length === 0) return 999 // No phases go to end
+        
+        // Find the highest priority phase
+        let highestPriority = 999
+        for (const phase of phases) {
+          const index = phaseOrder.indexOf(phase.toLowerCase())
+          if (index !== -1 && index < highestPriority) {
+            highestPriority = index
+          }
+        }
+        return highestPriority
+      }
+      
+      const priorityA = getPhasePriority(phasesA)
+      const priorityB = getPhasePriority(phasesB)
+      
+      return priorityA - priorityB
     },
   },
   {
