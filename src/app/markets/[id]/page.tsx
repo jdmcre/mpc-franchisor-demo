@@ -762,7 +762,7 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
                         </div>
                         <div 
                           className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors cursor-pointer"
-                          onClick={() => handlePdfClick('https://arfhkkmrmjworxfilslg.supabase.co/storage/v1/object/public/property-flyers/ce359af4-f81b-4cf2-afe2-2937882816fe_1758135128365.pdf', 'Placer.ai Report')}
+                          onClick={() => handlePdfClick('https://arfhkkmrmjworxfilslg.supabase.co/storage/v1/object/public/property-flyers/ce359af4-f81b-4cf2-afe2-2937882816fe_1758140730215.pdf', 'Placer.ai Report')}
                         >
                           <FileText className="h-4 w-4" />
                           <span>Placer.ai Report</span>
