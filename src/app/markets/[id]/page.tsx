@@ -533,8 +533,8 @@ export default function MarketPage({ params }: { params: Promise<{ id: string }>
                         properties={filteredProperties} 
                         marketName={market.name}
                         className="h-full w-full rounded-b-lg"
-                        selectedPropertyId={selectedPropertyId || undefined}
-                        hoveredPropertyId={hoveredPropertyId || undefined}
+                        selectedPropertyId={selectedPropertyId}
+                        hoveredPropertyId={hoveredPropertyId}
                         isSatelliteView={isSatelliteView}
                         onPropertySelect={handlePropertySelect}
                         territoryPolygon={market.territory_polygon}

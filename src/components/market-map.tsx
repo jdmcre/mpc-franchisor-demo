@@ -1,433 +1,322 @@
 'use client'
 
-import { useEffect, useRef, useState, useMemo } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
-import 'mapbox-gl/dist/mapbox-gl.css'
 import { Property } from '@/lib/supabase'
 
-// Set your Mapbox access token here
+// Set the Mapbox access token
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || ''
 
 interface MarketMapProps {
   properties: Property[]
   marketName: string
-  className?: string
-  selectedPropertyId?: string
-  hoveredPropertyId?: string
-  isSatelliteView?: boolean
+  highlightedPropertyId?: string | null
+  selectedPropertyId?: string | null
+  hoveredPropertyId?: string | null
+  onPropertyClick?: (propertyId: string) => void
   onPropertySelect?: (propertyId: string) => void
-  territoryPolygon?: {
-    id: string
-    type: string
-    geometry: {
-      type: string
-      coordinates: number[][][]
-    }
-    properties: Record<string, unknown>
-  }
+  isSatelliteView?: boolean
+  territoryPolygon?: any
   showTerritory?: boolean
+  className?: string
 }
 
-export function MarketMap({ properties, marketName, className = '', selectedPropertyId, hoveredPropertyId, isSatelliteView = false, onPropertySelect, territoryPolygon, showTerritory = false }: MarketMapProps) {
+// Function to normalize phase display text
+const normalizePhaseText = (phase: string): string => {
+  if (!phase) return phase
+  
+  // Handle special case for LOI
+  if (phase.toLowerCase() === 'loi') {
+    return 'LOI'
+  }
+  
+  // Replace underscores with spaces and capitalize each word
+  return phase
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ')
+}
+
+export function MarketMap({ 
+  properties, 
+  marketName, 
+  highlightedPropertyId, 
+  selectedPropertyId,
+  hoveredPropertyId,
+  onPropertyClick, 
+  onPropertySelect,
+  isSatelliteView = false,
+  territoryPolygon,
+  showTerritory = false,
+  className = '' 
+}: MarketMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null)
   const map = useRef<mapboxgl.Map | null>(null)
-  const resizeObserver = useRef<ResizeObserver | null>(null)
-  const [mapLoaded, setMapLoaded] = useState(false)
-  const abortController = useRef<AbortController | null>(null)
-  const markersRef = useRef<mapboxgl.Marker[]>([])
-
-  // Calculate center point and optimal zoom from properties using useMemo
-  const { centerLat, centerLng, zoom } = useMemo(() => {
-    let lat = 39.7392 // Default to Denver
-    let lng = -104.9903
-    let z = 10
-
-    if (properties.length > 0) {
-      // Filter properties with valid coordinates
-      const validProperties = properties.filter((p): p is Property & { lat: number; lng: number } => 
-        typeof p.lat === 'number' && 
-        typeof p.lng === 'number' && 
-        !isNaN(p.lat) && 
-        !isNaN(p.lng)
-      )
-      
-      if (validProperties.length > 0) {
-        // Calculate center from valid properties
-        lat = validProperties.reduce((sum, p) => sum + p.lat, 0) / validProperties.length
-        lng = validProperties.reduce((sum, p) => sum + p.lng, 0) / validProperties.length
-        
-        // Calculate bounds to fit all markers
-        if (validProperties.length === 1) {
-          // For single property, zoom in close
-          z = 15
-        } else {
-          // Calculate bounds for multiple properties
-          const lats = validProperties.map(p => p.lat)
-          const lngs = validProperties.map(p => p.lng)
-          
-          const minLat = Math.min(...lats)
-          const maxLat = Math.max(...lats)
-          const minLng = Math.min(...lngs)
-          const maxLng = Math.max(...lngs)
-          
-          // Calculate the span of coordinates
-          const latSpan = maxLat - minLat
-          const lngSpan = maxLng - minLng
-          const maxSpan = Math.max(latSpan, lngSpan)
-          
-          // Add padding to the bounds (10% on each side)
-          const padding = 0.1
-          const paddedSpan = maxSpan * (1 + 2 * padding)
-          
-          // Calculate zoom level based on span
-          // These values are approximate and may need fine-tuning
-          if (paddedSpan > 10) {
-            z = 4
-          } else if (paddedSpan > 5) {
-            z = 5
-          } else if (paddedSpan > 2) {
-            z = 6
-          } else if (paddedSpan > 1) {
-            z = 7
-          } else if (paddedSpan > 0.5) {
-            z = 8
-          } else if (paddedSpan > 0.2) {
-            z = 9
-          } else if (paddedSpan > 0.1) {
-            z = 10
-          } else if (paddedSpan > 0.05) {
-            z = 11
-          } else if (paddedSpan > 0.02) {
-            z = 12
-          } else if (paddedSpan > 0.01) {
-            z = 13
-          } else if (paddedSpan > 0.005) {
-            z = 14
-          } else {
-            z = 15
-          }
-        }
-      }
-    }
-
-    return { centerLat: lat, centerLng: lng, zoom: z }
-  }, [properties])
+  const markers = useRef<mapboxgl.Marker[]>([])
+  const [isLoaded, setIsLoaded] = useState(false)
 
   useEffect(() => {
     if (!mapContainer.current || map.current) return
 
-    // Create abort controller for this effect
-    abortController.current = new AbortController()
-    const signal = abortController.current.signal
-
     try {
-      // Check if signal is already aborted before creating map
-      if (signal.aborted) return
-
-      // Double-check that container still exists and is in DOM
-      if (!mapContainer.current || !mapContainer.current.parentNode) return
-
+      // Initialize map
       map.current = new mapboxgl.Map({
         container: mapContainer.current,
-        style: isSatelliteView ? 'mapbox://styles/mapbox/satellite-streets-v12' : 'mapbox://styles/mapbox/streets-v12',
-        center: [centerLng, centerLat],
-        zoom: zoom,
+        style: isSatelliteView ? 'mapbox://styles/mapbox/satellite-v9' : 'mapbox://styles/mapbox/streets-v12',
+        center: [-98.5795, 39.8283], // Center of US as default
+        zoom: 4,
         attributionControl: false
       })
 
       map.current.on('load', () => {
-        // Check if component is still mounted and signal not aborted
-        if (signal.aborted || !mapContainer.current) return
-        setMapLoaded(true)
-        // Resize the map after it loads to ensure proper dimensions
-        if (map.current && !signal.aborted && mapContainer.current) {
-          try {
+        setIsLoaded(true)
+        // Trigger resize after load to ensure proper sizing
+        setTimeout(() => {
+          if (map.current) {
             map.current.resize()
-          } catch (resizeError) {
-            console.warn('Error resizing map:', resizeError)
           }
-        }
+        }, 100)
       })
 
-      // Add click handler to map to clear selection when clicking on empty areas
+      map.current.on('error', (e) => {
+        console.warn('Map error:', e)
+      })
+
+      // Add click handler to map to unhighlight when clicking on empty space
       map.current.on('click', (e) => {
-        // Only clear selection if clicking on the map itself (not on markers)
-        if (onPropertySelect && !signal.aborted) {
-          onPropertySelect('')
+        // Check if click was on a marker (if so, don't unhighlight)
+        const features = map.current!.queryRenderedFeatures(e.point, {
+          layers: []
+        })
+        
+        // If no features were clicked (empty space), unhighlight
+        if (features.length === 0) {
+          if (onPropertySelect) {
+            onPropertySelect('')
+          }
+          if (onPropertyClick) {
+            onPropertyClick('')
+          }
         }
       })
 
-      // Set up ResizeObserver to handle container size changes (e.g., sidebar collapse/expand)
-      if (mapContainer.current && !signal.aborted) {
-        resizeObserver.current = new ResizeObserver(() => {
-          if (map.current && !signal.aborted && mapContainer.current) {
-            try {
-              map.current.resize()
-            } catch (resizeError) {
-              console.warn('Error resizing map:', resizeError)
-            }
-          }
-        })
-        resizeObserver.current.observe(mapContainer.current)
-      }
     } catch (error) {
-      if (!signal.aborted) {
-        console.warn('Error initializing map:', error)
-      }
+      console.error('Error initializing map:', error)
     }
 
     return () => {
-      // Abort any ongoing operations
-      if (abortController.current) {
+      // Clear markers first
+      markers.current.forEach(marker => {
         try {
-          abortController.current.abort()
+          marker.remove()
         } catch (error) {
-          // Ignore abort errors - controller might already be aborted
-          console.warn('AbortController cleanup warning:', error)
-        }
-      }
-
-      // Clean up markers
-      markersRef.current.forEach(marker => {
-        if (marker && typeof marker.remove === 'function') {
-          try {
-            marker.remove()
-          } catch (error) {
-            console.warn('Marker cleanup warning:', error)
-          }
+          console.warn('Error removing marker:', error)
         }
       })
-      markersRef.current = []
+      markers.current = []
 
-      // Clean up ResizeObserver
-      if (resizeObserver.current) {
-        try {
-          if (mapContainer.current) {
-            resizeObserver.current.unobserve(mapContainer.current)
-          }
-          resizeObserver.current.disconnect()
-        } catch (error) {
-          // Ignore ResizeObserver cleanup errors
-          console.warn('ResizeObserver cleanup warning:', error)
-        }
-        resizeObserver.current = null
-      }
-
-      // Clean up map
+      // Then remove map
       if (map.current) {
         try {
-          // Check if map is still valid and not already removed
-          if (map.current && 
-              typeof map.current.remove === 'function' && 
-              !map.current._removed) {
-            // Additional safety check - ensure container exists and is in DOM
-            const container = map.current.getContainer()
-            if (container && container.parentNode) {
-              // Check if the map is in a valid state before removing
-              try {
-                // Try to access a safe property to check if map is still valid
-                if (map.current.getStyle && map.current.getStyle()) {
-                  map.current.remove()
-                }
-              } catch (styleError) {
-                // If we can't access style, the map might be in an invalid state
-                console.warn('Map style check failed, skipping remove:', styleError)
-              }
-            }
-          }
+          map.current.remove()
         } catch (error) {
-          // Ignore cleanup errors - map might already be removed or in invalid state
-          console.warn('Map cleanup warning:', error)
-        } finally {
-          map.current = null
+          console.warn('Error removing map:', error)
         }
+        map.current = null
       }
     }
   }, [])
 
   useEffect(() => {
-    if (!map.current || !mapLoaded) return
+    if (!map.current || !isLoaded || properties.length === 0) return
 
     try {
-      // Clear existing markers using our ref
-      markersRef.current.forEach(marker => {
-        if (marker && typeof marker.remove === 'function') {
+      // Clear existing markers safely
+      markers.current.forEach(marker => {
+        try {
           marker.remove()
+        } catch (error) {
+          console.warn('Error removing marker:', error)
         }
       })
-      markersRef.current = []
+      markers.current = []
 
-      // Add markers for properties with valid coordinates
-      const validProperties = properties.filter((p): p is Property & { lat: number; lng: number } => 
-        typeof p.lat === 'number' && 
-        typeof p.lng === 'number' && 
-        !isNaN(p.lat) && 
-        !isNaN(p.lng)
-      )
+      // Calculate bounds from properties
+      const validProperties = properties.filter(p => p.lat && p.lng)
+      
+      if (validProperties.length === 0) return
 
+      const bounds = new mapboxgl.LngLatBounds()
+      
       validProperties.forEach(property => {
-        const el = document.createElement('div')
-        el.className = 'property-marker'
-        el.style.width = '20px'
-        el.style.height = '20px'
-        el.style.borderRadius = '50%'
-        // Determine marker color: red if selected or hovered, blue otherwise
-        const isSelected = selectedPropertyId === property.id
-        const isHovered = hoveredPropertyId === property.id
-        el.style.backgroundColor = (isSelected || isHovered) ? '#ef4444' : '#3b82f6'
-        el.style.border = '2px solid white'
-        el.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)'
-        el.style.cursor = 'pointer'
-        el.style.transition = 'all 0.2s ease'
-
-        const popup = new mapboxgl.Popup({
-          offset: 25,
-          closeButton: false,
-          closeOnClick: true
-        }).setHTML(`
-          <div class="p-2">
-            <h3 class="font-semibold text-sm">${property.title || 'Untitled Property'}</h3>
-            <p class="text-xs text-gray-600">${property.address_line}, ${property.city}, ${property.state}</p>
-            <p class="text-xs text-gray-600">${property.size_sqft?.toLocaleString()} sq ft</p>
-            <p class="text-xs text-gray-600">$${property.base_rent_psf}/sq ft</p>
-            <span class="inline-block px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800 mt-1">
-              ${property.phase.replace('_', ' ').toUpperCase()}
-            </span>
-          </div>
-        `)
-
         if (property.lat && property.lng) {
-          const marker = new mapboxgl.Marker(el)
-            .setLngLat([property.lng, property.lat])
-            .setPopup(popup)
-            .addTo(map.current!)
+          const lngLat = [property.lng, property.lat] as [number, number]
+          bounds.extend(lngLat)
 
-          // Store marker in ref for proper cleanup
-          markersRef.current.push(marker)
+          const isHighlighted = highlightedPropertyId === property.id
+          const isSelected = selectedPropertyId === property.id
+          const isHovered = hoveredPropertyId === property.id
 
-          // Add click handler to marker
-          el.addEventListener('click', (e) => {
-            e.stopPropagation() // Prevent map click event from firing
+          // Create custom circle marker with highlighting
+          const markerEl = document.createElement('div')
+          markerEl.className = 'custom-marker'
+          markerEl.style.cssText = `
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background-color: ${isSelected ? '#1d4ed8' : isHovered ? '#2563eb' : '#3b82f6'};
+            border: ${isSelected ? '4px solid #fbbf24' : isHovered ? '3px solid #fbbf24' : '3px solid white'};
+            box-shadow: ${isSelected ? '0 0 0 3px rgba(251, 191, 36, 0.3)' : isHovered ? '0 0 0 2px rgba(251, 191, 36, 0.2)' : '0 2px 4px rgba(0,0,0,0.3)'};
+            cursor: pointer;
+            transition: all 0.2s ease;
+          `
+
+          // Add click handler
+          markerEl.addEventListener('click', (e) => {
+            e.stopPropagation() // Prevent map click event
             if (onPropertySelect) {
               onPropertySelect(property.id)
             }
+            if (onPropertyClick) {
+              onPropertyClick(property.id)
+            }
           })
+
+          const marker = new mapboxgl.Marker(markerEl)
+            .setLngLat(lngLat)
+            .addTo(map.current)
+          
+          // Store marker reference for cleanup
+          markers.current.push(marker)
         }
       })
 
-      // Fit map to show all markers with optimal zoom
-      if (validProperties.length > 0) {
-        if (validProperties.length === 1) {
-          // For single property, center and zoom in
-          map.current.setCenter([validProperties[0].lng, validProperties[0].lat])
-          map.current.setZoom(15)
-        } else {
-          // For multiple properties, calculate bounds and fit to them
-          const bounds = new mapboxgl.LngLatBounds()
-          validProperties.forEach(property => {
-            bounds.extend([property.lng, property.lat])
-          })
-          
-          // Fit the map to the bounds with padding
-          map.current.fitBounds(bounds, {
-            padding: 50, // Add 50px padding around the bounds
-            maxZoom: 15, // Don't zoom in too much
-            duration: 1000 // Smooth transition
-          })
-        }
+      // Fit map to bounds
+      if (validProperties.length > 1) {
+        map.current.fitBounds(bounds, { 
+          padding: 20,
+          maxZoom: 12
+        })
+      } else if (validProperties.length === 1) {
+        const property = validProperties[0]
+        map.current.setCenter([property.lng!, property.lat!])
+        map.current.setZoom(10)
       }
     } catch (error) {
-      console.warn('Error adding markers to map:', error)
+      console.error('Error updating map markers:', error)
     }
-  }, [properties, mapLoaded, selectedPropertyId, hoveredPropertyId])
+  }, [properties, isLoaded, highlightedPropertyId, selectedPropertyId, hoveredPropertyId])
 
-  // Handle territory polygon display
+  // Resize map when container size changes
   useEffect(() => {
-    if (!map.current || !mapLoaded || !territoryPolygon) return
+    if (!map.current || !isLoaded) return
 
-    const sourceId = 'territory-polygon'
-    const layerId = 'territory-polygon-fill'
-    const outlineLayerId = 'territory-polygon-outline'
+    const resizeObserver = new ResizeObserver(() => {
+      if (map.current) {
+        try {
+          map.current.resize()
+        } catch (error) {
+          console.warn('Error resizing map:', error)
+        }
+      }
+    })
+
+    if (mapContainer.current) {
+      resizeObserver.observe(mapContainer.current)
+    }
+
+    return () => {
+      resizeObserver.disconnect()
+    }
+  }, [isLoaded])
+
+  // Handle satellite view toggle
+  useEffect(() => {
+    if (!map.current || !isLoaded) return
 
     try {
-      // Remove existing territory polygon if it exists
-      if (map.current.getSource(sourceId)) {
-        if (map.current.getLayer(layerId)) {
-          map.current.removeLayer(layerId)
-        }
-        if (map.current.getLayer(outlineLayerId)) {
-          map.current.removeLayer(outlineLayerId)
-        }
-        map.current.removeSource(sourceId)
-      }
-
-      // Add territory polygon if showTerritory is true
-      if (showTerritory) {
-        // Add the GeoJSON source
-        map.current.addSource(sourceId, {
-          type: 'geojson',
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          data: territoryPolygon as any
-        })
-
-        // Add the fill layer
-        map.current.addLayer({
-          id: layerId,
-          type: 'fill',
-          source: sourceId,
-          paint: {
-            'fill-color': '#3b82f6',
-            'fill-opacity': 0.2
-          }
-        })
-
-        // Add the outline layer
-        map.current.addLayer({
-          id: outlineLayerId,
-          type: 'line',
-          source: sourceId,
-          paint: {
-            'line-color': '#3b82f6',
-            'line-width': 2,
-            'line-opacity': 0.8
-          }
-        })
-      }
-    } catch (error) {
-      console.warn('Error handling territory polygon:', error)
-    }
-  }, [mapLoaded, territoryPolygon, showTerritory])
-
-  // Handle style changes when satellite view toggle changes
-  useEffect(() => {
-    if (!map.current || !mapLoaded || !mapContainer.current) return
-
-    const newStyle = isSatelliteView ? 'mapbox://styles/mapbox/satellite-streets-v12' : 'mapbox://styles/mapbox/streets-v12'
-    
-    try {
-      // Check if map is still valid before changing style
-      if (map.current && !map.current._removed && mapContainer.current) {
-        map.current.setStyle(newStyle)
-      }
+      const newStyle = isSatelliteView ? 'mapbox://styles/mapbox/satellite-v9' : 'mapbox://styles/mapbox/streets-v12'
+      map.current.setStyle(newStyle)
     } catch (error) {
       console.warn('Error changing map style:', error)
     }
-  }, [isSatelliteView, mapLoaded])
+  }, [isSatelliteView, isLoaded])
 
+  // Handle territory polygon
+  useEffect(() => {
+    if (!map.current || !isLoaded || !territoryPolygon || !showTerritory) return
 
+    try {
+      // Add territory polygon to map
+      if (map.current.getSource('territory')) {
+        map.current.removeLayer('territory-fill')
+        map.current.removeLayer('territory-stroke')
+        map.current.removeSource('territory')
+      }
+
+      map.current.addSource('territory', {
+        type: 'geojson',
+        data: territoryPolygon
+      })
+
+      map.current.addLayer({
+        id: 'territory-fill',
+        type: 'fill',
+        source: 'territory',
+        paint: {
+          'fill-color': '#3b82f6',
+          'fill-opacity': 0.1
+        }
+      })
+
+      map.current.addLayer({
+        id: 'territory-stroke',
+        type: 'line',
+        source: 'territory',
+        paint: {
+          'line-color': '#3b82f6',
+          'line-width': 2
+        }
+      })
+    } catch (error) {
+      console.warn('Error adding territory polygon:', error)
+    }
+
+    return () => {
+      if (map.current && map.current.getSource('territory')) {
+        try {
+          map.current.removeLayer('territory-fill')
+          map.current.removeLayer('territory-stroke')
+          map.current.removeSource('territory')
+        } catch (error) {
+          console.warn('Error removing territory polygon:', error)
+        }
+      }
+    }
+  }, [territoryPolygon, showTerritory, isLoaded])
+
+  if (!process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN) {
+    return (
+      <div className={`bg-gray-100 border border-gray-200 rounded-lg flex items-center justify-center ${className}`}>
+        <div className="text-center text-gray-500">
+          <div className="text-xs">Mapbox token not configured</div>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className={`relative ${className}`}>
+    <div className={`relative w-full h-full ${className}`}>
       <div 
         ref={mapContainer} 
         className="w-full h-full rounded-lg"
-        style={{ minHeight: '400px' }}
+        style={{ minHeight: '200px' }}
       />
-      {!mapLoaded && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-100 rounded-lg">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-            <p className="text-sm text-gray-600">Loading map...</p>
+      {!isLoaded && (
+        <div className="absolute inset-0 bg-gray-100 rounded-lg flex items-center justify-center">
+          <div className="text-center text-gray-500">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mx-auto mb-1"></div>
+            <div className="text-xs">Loading map...</div>
           </div>
         </div>
       )}

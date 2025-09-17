@@ -19,7 +19,7 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar'
 import { DataService } from '@/lib/data-service'
-import { Market, MarketUpdate, supabase } from '@/lib/supabase'
+import { Market, MarketUpdate, Property, supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -28,8 +28,10 @@ import { ViewToggle } from '@/components/view-toggle'
 import { DataTable } from '@/components/ui/data-table'
 import { createColumns } from './columns'
 import { MarketUpdateForm } from '@/components/market-update-form'
+import { MarketMap } from '@/components/market-map'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Input } from '@/components/ui/input'
 
 interface MarketWithDetails extends Market {
   propertyCount: number
@@ -56,23 +58,43 @@ export default function MarketsPage() {
   const [marketUpdates, setMarketUpdates] = useState<MarketUpdate[]>([])
   const [editingUpdate, setEditingUpdate] = useState<MarketUpdate | null>(null)
   const [phaseFilter, setPhaseFilter] = useState<string>('all')
-  const [marketDetailsModalOpen, setMarketDetailsModalOpen] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [showDetails, setShowDetails] = useState(false)
+  const [marketProperties, setMarketProperties] = useState<Property[]>([])
+  const [highlightedPropertyId, setHighlightedPropertyId] = useState<string | null>(null)
   const marketDetailsTriggerRef = useRef<HTMLButtonElement>(null)
 
-  const handleViewUpdates = (marketId: string) => {
+  const handleViewUpdates = async (marketId: string) => {
     const market = markets.find(m => m.id === marketId)
     if (market) {
       setSelectedMarketForUpdates(market)
       setUpdatesModalOpen(true)
+      setShowDetails(false)
+      
+      // Fetch properties for this market
+      try {
+        const properties = await DataService.getPropertiesByMarket(marketId)
+        setMarketProperties(properties)
+      } catch (error) {
+        console.error('Error fetching market properties:', error)
+        setMarketProperties([])
+      }
     }
   }
 
   const handleMarketRowClick = (market: MarketWithDetails) => {
+    // Navigate to market details page
     router.push(`/markets/${market.id}`)
   }
 
   const handleViewMarketDetails = () => {
-    setMarketDetailsModalOpen(true)
+    setShowDetails(true)
+  }
+
+  const handleClosePanel = () => {
+    setUpdatesModalOpen(false)
+    setShowDetails(false)
+    setHighlightedPropertyId(null)
   }
 
   // Define all possible phases for the filter dropdown in specific order
@@ -129,17 +151,28 @@ export default function MarketsPage() {
       .join(' ')
   }
 
-  // Filter markets based on selected phase
+  // Filter markets based on selected phase and search term
   const filteredMarkets = useMemo(() => {
-    if (phaseFilter === 'all') {
-      return markets
-    }
-    return markets.filter(market => 
-      market.phases.some(phase => 
-        phase && phase.toLowerCase().trim() === phaseFilter.toLowerCase().trim()
+    let filtered = markets
+
+    // Apply phase filter
+    if (phaseFilter !== 'all') {
+      filtered = filtered.filter(market => 
+        market.phases.some(phase => 
+          phase && phase.toLowerCase().trim() === phaseFilter.toLowerCase().trim()
+        )
       )
-    )
-  }, [markets, phaseFilter])
+    }
+
+    // Apply search filter
+    if (searchTerm.trim()) {
+      filtered = filtered.filter(market =>
+        market.name.toLowerCase().includes(searchTerm.toLowerCase().trim())
+      )
+    }
+
+    return filtered
+  }, [markets, phaseFilter, searchTerm])
 
   const fetchMarketUpdates = async () => {
     try {
@@ -192,45 +225,12 @@ export default function MarketsPage() {
     fetchData()
   }, [])
 
-  // Close Market Details modal when Updates modal closes
+  // Reset details view when panel closes
   useEffect(() => {
-    if (!updatesModalOpen && marketDetailsModalOpen) {
-      setMarketDetailsModalOpen(false)
+    if (!updatesModalOpen) {
+      setShowDetails(false)
     }
-  }, [updatesModalOpen, marketDetailsModalOpen])
-
-  // Focus management and keyboard handling for Market Details modal
-  useEffect(() => {
-    if (marketDetailsModalOpen) {
-      // Focus trap and keyboard handling
-      const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') {
-          setMarketDetailsModalOpen(false)
-        }
-      }
-
-
-      // Add event listener
-      document.addEventListener('keydown', handleKeyDown)
-
-      // Focus the modal after a brief delay to ensure it's rendered
-      setTimeout(() => {
-        const modal = document.querySelector('[role="dialog"][aria-modal="true"]') as HTMLElement
-        if (modal) {
-          modal.focus()
-        }
-      }, 100)
-
-      // Cleanup
-      return () => {
-        document.removeEventListener('keydown', handleKeyDown)
-        // Restore focus to the trigger button when modal closes
-        if (marketDetailsTriggerRef.current) {
-          marketDetailsTriggerRef.current.focus()
-        }
-      }
-    }
-  }, [marketDetailsModalOpen])
+  }, [updatesModalOpen])
 
 
 
@@ -284,25 +284,37 @@ export default function MarketsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {/* Phase Filter */}
-              <div className="flex items-center gap-4 mb-6">
-                <div className="flex items-center gap-2">
-                  <Filter className="h-4 w-4" />
-                  <span className="text-sm font-medium">Filter by Phase:</span>
+              {/* Filters and Search */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-6">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <Filter className="h-4 w-4" />
+                    <span className="text-sm font-medium">Filter by Phase:</span>
+                  </div>
+                  <Select value={phaseFilter} onValueChange={setPhaseFilter}>
+                    <SelectTrigger className="w-[200px]">
+                      <SelectValue placeholder="Select phase" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Phases</SelectItem>
+                      {allPhases.map((phase) => (
+                        <SelectItem key={phase} value={phase}>
+                          {normalizePhaseText(phase)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <Select value={phaseFilter} onValueChange={setPhaseFilter}>
-                  <SelectTrigger className="w-[200px]">
-                    <SelectValue placeholder="Select phase" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Phases</SelectItem>
-                    {allPhases.map((phase) => (
-                      <SelectItem key={phase} value={phase}>
-                        {normalizePhaseText(phase)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                
+                {/* Search Input */}
+                <div className="flex-1 max-w-md">
+                  <Input
+                    placeholder="Search markets by name..."
+                    value={searchTerm}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
               </div>
 
               {view === 'cards' ? (
@@ -372,18 +384,11 @@ export default function MarketsPage() {
                             </div>
                           )}
                           
-                          {/* Action Button */}
+                          {/* Click indicator */}
                           <div className="pt-1 flex justify-end">
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                router.push(`/markets/${market.id}`)
-                              }}
-                            >
-                              View Details
-                            </Button>
+                            <span className="text-xs text-muted-foreground">
+                              Click to view updates
+                            </span>
                           </div>
                         </CardContent>
                       </Card>
@@ -416,138 +421,200 @@ export default function MarketsPage() {
           </Card>
         </div>
 
-        {/* Market Updates Modal - Base Sheet (~20% width) */}
+        {/* Single Expandable Market Panel */}
         <Sheet
           modal={false}
           open={updatesModalOpen}
-          onOpenChange={(next) => {
-            if (!next && marketDetailsModalOpen) return; // don't close base while details is open
-            setUpdatesModalOpen(next);
+          onOpenChange={(open) => {
+            if (!open) {
+              handleClosePanel()
+            }
           }}
         >
-          <SheetContent side="right" className="w-[20vw] min-w-[300px] z-[60]">
+          <SheetContent 
+            side="right" 
+            className={`transition-all duration-300 ${
+              showDetails 
+                ? 'w-[70vw] min-w-[800px]' 
+                : 'w-[35vw] min-w-[400px]'
+            } z-[60]`}
+          >
             <SheetHeader>
-              <SheetTitle className="flex items-center gap-2">
-                <MessageSquare className="h-5 w-5" />
-                Market Updates
-              </SheetTitle>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="h-5 w-5" />
+                  <SheetTitle>Market Updates</SheetTitle>
+                  {showDetails && (
+                    <>
+                      <div className="mx-2 text-muted-foreground">•</div>
+                      <Building2 className="h-5 w-5" />
+                      <span className="text-sm font-medium">Market Details</span>
+                    </>
+                  )}
+                </div>
+              </div>
               <SheetDescription>
                 {selectedMarketForUpdates?.name || 'Market'}
+                {showDetails && ' - Updates and detailed information'}
               </SheetDescription>
-              <div className="pt-2">
-                <Button
-                  ref={marketDetailsTriggerRef}
-                  variant="link"
-                  onClick={handleViewMarketDetails}
-                  className="p-0 h-auto text-blue-600 hover:text-blue-800"
-                >
-                  View Market Details
-                </Button>
-              </div>
             </SheetHeader>
 
-            {/* Independent scroll area for Market Updates */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {selectedMarketForUpdates && (() => {
-                const filteredUpdates = marketUpdates.filter(msg => msg.market_id === selectedMarketForUpdates.id)
-                return filteredUpdates.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full text-center text-gray-500">
-                    <MessageSquare className="h-12 w-12 mb-3 text-gray-300" />
-                    <p className="font-medium">No updates yet</p>
-                    <p className="text-sm mt-1">Start a conversation for this market</p>
-                  </div>
-                ) : (
-                  filteredUpdates.map((message) => {
-                    const isOrgAdmins = message.author === 'Org Admins'
+            {/* Content Area - Side by Side when details are shown */}
+            <div className="flex-1 overflow-y-auto p-4">
+              <div className={`flex gap-6 h-full ${showDetails ? 'flex-row' : 'flex-col'}`}>
+                {/* Details Section - Shows on the LEFT when expanded */}
+                {showDetails && (
+                  <div className="w-1/2 pl-2">
+                    <div className="flex items-center justify-between mb-3 pb-2 border-b">
+                      <div className="flex items-center gap-2">
+                        <Building2 className="h-4 w-4 text-blue-600" />
+                        <h3 className="text-sm font-semibold text-blue-600">Market Details</h3>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowDetails(false)}
+                        className="h-7 px-3 text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        <X className="h-3 w-3 mr-1" />
+                        Hide Details
+                      </Button>
+                    </div>
+                    
+                    <div className="space-y-4 max-h-[calc(100vh-200px)] overflow-y-auto">
+                      {/* Map Section */}
+                      <div className="w-full h-64 mb-4">
+                        <MarketMap 
+                          properties={marketProperties}
+                          marketName={selectedMarketForUpdates?.name || 'Market'}
+                          highlightedPropertyId={highlightedPropertyId}
+                          onPropertyClick={(propertyId) => setHighlightedPropertyId(propertyId || null)}
+                          className="w-full h-full"
+                        />
+                      </div>
 
-                    return (
-                      <div key={message.id} className="group transition-all duration-500">
-                        <div className="flex items-start gap-3">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0 ${
-                            isOrgAdmins ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
-                          }`}>
-                            {isOrgAdmins ? 'OA' : 'MP'}
+                      {/* Properties Table */}
+                      <div>
+                        <h4 className="text-sm font-semibold mb-2 text-gray-700">Properties ({marketProperties.length})</h4>
+                        {marketProperties.length === 0 ? (
+                          <div className="text-center py-4 text-gray-500 text-xs">
+                            No properties found
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="text-sm font-medium text-gray-900">
-                                {message.author}
-                              </span>
-                              <span className="text-xs text-gray-500">
-                                {new Date(message.created_at).toLocaleDateString()}
-                              </span>
+                        ) : (
+                          <div className="space-y-1">
+                            {marketProperties.map((property) => {
+                              const isHighlighted = highlightedPropertyId === property.id
+                              const hasRentData = (property.base_rent_psf || 0) > 0 || (property.expenses_psf || 0) > 0
+                              
+                              return (
+                                <div 
+                                  key={property.id} 
+                                  className={`flex items-center justify-between p-2 rounded text-xs cursor-pointer transition-colors ${
+                                    isHighlighted 
+                                      ? 'bg-blue-100 border-2 border-blue-300' 
+                                      : 'bg-gray-50 hover:bg-gray-100'
+                                  }`}
+                                  onClick={() => setHighlightedPropertyId(property.id)}
+                                >
+                                  <div className="flex-1 min-w-0">
+                                    <div className="font-medium truncate">
+                                      {property.title || property.address_line || 'Untitled Property'}
+                                    </div>
+                                    <div className="text-gray-500 truncate">
+                                      {[property.city, property.state].filter(Boolean).join(', ')}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2 ml-2">
+                                    {property.size_sqft && (
+                                      <span className="text-gray-600">
+                                        {property.size_sqft.toLocaleString()} SF
+                                      </span>
+                                    )}
+                                    {hasRentData && (
+                                      <span className="text-gray-600 font-medium text-right">
+                                        <div className="text-xs">
+                                          ${(property.base_rent_psf || 0).toFixed(2)} + ${(property.expenses_psf || 0).toFixed(2)}/SF
+                                        </div>
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Updates Section */}
+                <div className={`${showDetails ? 'w-1/2' : 'w-full'} ${showDetails ? 'border-l pl-6' : ''} relative`}>
+                  <div className="flex items-center justify-between mb-4 pb-2 border-b">
+                    <div className="flex items-center gap-2">
+                      <MessageSquare className="h-4 w-4 text-gray-600" />
+                      <h3 className="text-sm font-semibold text-gray-600">Updates</h3>
+                    </div>
+                    {!showDetails && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleViewMarketDetails}
+                        className="h-7 px-3 text-xs"
+                        disabled={!selectedMarketForUpdates}
+                      >
+                        <Building2 className="h-3 w-3 mr-1" />
+                        Show Details
+                      </Button>
+                    )}
+                  </div>
+                  {selectedMarketForUpdates && (() => {
+                    const filteredUpdates = marketUpdates.filter(msg => msg.market_id === selectedMarketForUpdates.id)
+                    return filteredUpdates.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center h-full text-center text-gray-500">
+                        <MessageSquare className="h-12 w-12 mb-3 text-gray-300" />
+                        <p className="font-medium">No updates yet</p>
+                        <p className="text-sm mt-1">Start a conversation for this market</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4 max-h-[calc(100vh-200px)] overflow-y-auto">
+                        {filteredUpdates.map((message) => {
+                          const isOrgAdmins = message.author === 'Org Admins'
+
+                          return (
+                            <div key={message.id} className="group transition-all duration-500">
+                              <div className="flex items-start gap-3">
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0 ${
+                                  isOrgAdmins ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
+                                }`}>
+                                  {isOrgAdmins ? 'OA' : 'MP'}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="text-sm font-medium text-gray-900">
+                                      {message.author}
+                                    </span>
+                                    <span className="text-xs text-gray-500">
+                                      {new Date(message.created_at).toLocaleDateString()}
+                                    </span>
+                                  </div>
+                                  <p className="text-sm text-gray-700 leading-relaxed">
+                                    {message.message}
+                                  </p>
+                                </div>
+                              </div>
                             </div>
-                            <p className="text-sm text-gray-700 leading-relaxed">
-                              {message.message}
-                            </p>
-                          </div>
-                        </div>
+                          )
+                        })}
                       </div>
                     )
-                  })
-                )
-              })()}
+                  })()}
+                </div>
+
+              </div>
             </div>
           </SheetContent>
         </Sheet>
-
-        {/* Market Details Modal - Portal-based to avoid stacking context issues */}
-        {marketDetailsModalOpen && typeof window !== 'undefined' && createPortal(
-          <>
-            {/* Invisible backdrop for clicks */}
-            <div
-              className="fixed inset-0 z-[100]"
-              onClick={() => setMarketDetailsModalOpen(false)}
-            />
-            {/* Modal content */}
-            <div
-              className="fixed top-0 bottom-0 bg-white border-r shadow-lg transition-all duration-300 flex flex-col outline-none z-[101]"
-              style={{
-                width: '50vw',
-                right: '20vw', // Position from left edge of Market Updates
-                left: 'auto'
-              }}
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="market-details-title"
-              tabIndex={-1}
-              onClick={(e) => e.stopPropagation()}
-              onPointerDown={(e) => e.stopPropagation()}
-            >
-              {/* Header */}
-              <div className="flex h-16 shrink-0 items-center gap-4 border-b px-6">
-                <div className="flex items-center gap-2">
-                  <Building2 className="h-5 w-5" />
-                  <h2 id="market-details-title" className="text-lg font-semibold">Market Details</h2>
-                </div>
-                <button
-                  onClick={() => setMarketDetailsModalOpen(false)}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  className="ml-auto p-2 hover:bg-gray-100 rounded-md"
-                  aria-label="Close Market Details"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-              <div className="px-6 py-2 text-sm text-muted-foreground border-b">
-                {selectedMarketForUpdates?.name || 'Market'} - Detailed information and location
-              </div>
-
-              {/* Independent scroll area for Market Details */}
-              <div className="flex-1 overflow-y-auto p-6">
-                {/* Map Placeholder */}
-                <div className="w-full h-full bg-gray-100 border border-gray-200 rounded-lg flex items-center justify-center min-h-[500px]">
-                  <div className="text-center text-gray-500">
-                    <MapPin className="h-16 w-16 mx-auto mb-4" />
-                    <p className="text-lg font-medium">Map placeholder for {selectedMarketForUpdates?.name}</p>
-                    <p className="text-sm text-gray-400">Interactive map would be displayed here</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </>,
-          document.body
-        )}
 
 
       </SidebarInset>
