@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import mapboxgl from 'mapbox-gl'
 import { Property } from '@/lib/supabase'
 
@@ -16,30 +16,21 @@ interface MarketMapProps {
   onPropertyClick?: (propertyId: string) => void
   onPropertySelect?: (propertyId: string) => void
   isSatelliteView?: boolean
-  territoryPolygon?: any
+  territoryPolygon?: {
+    type: string
+    geometry: {
+      type: string
+      coordinates: number[][][]
+    }
+    properties: Record<string, unknown>
+  }
   showTerritory?: boolean
   className?: string
 }
 
-// Function to normalize phase display text
-const normalizePhaseText = (phase: string): string => {
-  if (!phase) return phase
-  
-  // Handle special case for LOI
-  if (phase.toLowerCase() === 'loi') {
-    return 'LOI'
-  }
-  
-  // Replace underscores with spaces and capitalize each word
-  return phase
-    .split('_')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(' ')
-}
 
 export function MarketMap({ 
   properties, 
-  marketName, 
   highlightedPropertyId, 
   selectedPropertyId,
   hoveredPropertyId,
@@ -54,6 +45,25 @@ export function MarketMap({
   const map = useRef<mapboxgl.Map | null>(null)
   const markers = useRef<mapboxgl.Marker[]>([])
   const [isLoaded, setIsLoaded] = useState(false)
+
+  const handleMapClick = useCallback((e: mapboxgl.MapMouseEvent) => {
+    if (!map.current) return
+    
+    // Check if click was on a marker (if so, don't unhighlight)
+    const features = map.current.queryRenderedFeatures(e.point, {
+      layers: []
+    })
+    
+    // If no features were clicked (empty space), unhighlight
+    if (features.length === 0) {
+      if (onPropertySelect) {
+        onPropertySelect('')
+      }
+      if (onPropertyClick) {
+        onPropertyClick('')
+      }
+    }
+  }, [onPropertySelect, onPropertyClick])
 
   useEffect(() => {
     if (!mapContainer.current || map.current) return
@@ -83,22 +93,7 @@ export function MarketMap({
       })
 
       // Add click handler to map to unhighlight when clicking on empty space
-      map.current.on('click', (e) => {
-        // Check if click was on a marker (if so, don't unhighlight)
-        const features = map.current!.queryRenderedFeatures(e.point, {
-          layers: []
-        })
-        
-        // If no features were clicked (empty space), unhighlight
-        if (features.length === 0) {
-          if (onPropertySelect) {
-            onPropertySelect('')
-          }
-          if (onPropertyClick) {
-            onPropertyClick('')
-          }
-        }
-      })
+      map.current.on('click', handleMapClick)
 
     } catch (error) {
       console.error('Error initializing map:', error)
@@ -125,7 +120,7 @@ export function MarketMap({
         map.current = null
       }
     }
-  }, [])
+  }, [handleMapClick])
 
   useEffect(() => {
     if (!map.current || !isLoaded || properties.length === 0) return
@@ -153,7 +148,6 @@ export function MarketMap({
           const lngLat = [property.lng, property.lat] as [number, number]
           bounds.extend(lngLat)
 
-          const isHighlighted = highlightedPropertyId === property.id
           const isSelected = selectedPropertyId === property.id
           const isHovered = hoveredPropertyId === property.id
 
@@ -205,7 +199,7 @@ export function MarketMap({
     } catch (error) {
       console.error('Error updating map markers:', error)
     }
-  }, [properties, isLoaded, highlightedPropertyId, selectedPropertyId, hoveredPropertyId])
+  }, [properties, isLoaded, selectedPropertyId, hoveredPropertyId, onPropertySelect, onPropertyClick])
 
   // Resize map when container size changes
   useEffect(() => {
